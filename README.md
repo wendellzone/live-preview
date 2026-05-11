@@ -15,7 +15,7 @@
 
 ## 在线访问
 
-GitHub Pages: https://<USER>.github.io/<REPO>/
+GitHub Pages: https://jiashuwang0.github.io/live-preview/
 
 ## 依赖（CDN）
 
