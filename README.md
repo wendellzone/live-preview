@@ -15,7 +15,7 @@
 
 ## 在线访问
 
-GitHub Pages: https://jiashuwang0.github.io/live-preview/
+GitHub Pages: https://wendellzone.github.io/live-preview/
 
 ## 依赖（CDN）
 
