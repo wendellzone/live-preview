@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>实时预览 · Markdown / JSON / PlantUML</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+<style>
+  :root {
+    --bg: #1e1f29; --panel: #282a36; --panel-2: #21222c; --panel-3: #191a21;
+    --border: #44475a; --text: #f8f8f2; --muted: #bdbdc8;
+    --accent: #bd93f9; --accent-2: #50fa7b; --warn: #ffb86c; --danger: #ff5555;
+    --add-bg: #d1f4d8; --add-fg: #1a7f37;
+    --del-bg: #ffd6d3; --del-fg: #cf222e;
+    --mod-bg: #fff1a8; --mod-fg: #9a6700;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+
+  /* ====== Header（共享，按钮位置固定） ====== */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0; width: 160px; flex-shrink: 0; }
+  .nav { display: flex; gap: 4px; }
+  .nav-link {
+    padding: 5px 12px; font-size: 12px;
+    color: var(--muted); cursor: pointer;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--panel); user-select: none;
+  }
+  .nav-link:hover { color: var(--text); background: #3a3d4d; }
+  .nav-link.active { background: var(--accent); color: #1e1f29; border-color: var(--accent); font-weight: 600; }
+  .spacer { flex: 1; }
+  .actions { display: flex; gap: 8px; align-items: center; }
+  .btn {
+    padding: 6px 12px; background: var(--panel);
+    border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; cursor: pointer; font-size: 12px;
+  }
+  .btn:hover { background: #3a3d4d; }
+  .btn.primary { background: var(--accent-2); color: #1e1f29; border-color: var(--accent-2); font-weight: 600; }
+  .btn.warn { background: var(--warn); color: #1e1f29; border-color: var(--warn); font-weight: 600; }
+
+  /* ====== 视图切换 ====== */
+  .view { display: none; height: calc(100vh - 49px); }
+  .view.active { display: flex; flex-direction: column; }
+
+  /* ====== 通用 pane / divider ====== */
+  .pane { display: flex; flex-direction: column; overflow: hidden; }
+  .pane-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 12px; background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .pane-head .title-input {
+    background: transparent; border: none; color: var(--text);
+    font-size: 13px; font-weight: 600; outline: none; width: 60%;
+  }
+  .divider { background: var(--border); cursor: col-resize; }
+  .divider-h { background: var(--border); cursor: row-resize; }
+  .divider:hover, .divider-h:hover { background: var(--accent); }
+
+  textarea, .ta {
+    background: var(--panel); color: var(--text);
+    border: none; outline: none; resize: none;
+    padding: 14px 16px;
+    font-family: "SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    font-size: 13px; line-height: 1.55; tab-size: 2;
+  }
+  .collapse-btn {
+    background: transparent; border: none; color: var(--muted);
+    cursor: pointer; font-size: 14px; padding: 0 4px; user-select: none;
+  }
+  .collapse-btn:hover { color: var(--text); }
+
+  /* ============================================================
+     视图 1：综合（Markdown 编辑工作台）
+     ============================================================ */
+  #view-md { }
+  #view-md .grid {
+    display: grid;
+    grid-template-columns: 220px 6px 1fr 6px 1fr;
+    height: 100%;
+    transition: grid-template-columns .2s;
+  }
+  #view-md .grid.aside-collapsed { grid-template-columns: 36px 6px 1fr 6px 1fr !important; }
+  #view-md .grid.editor-collapsed { grid-template-columns: var(--aside-w,220px) 6px 36px 6px 1fr !important; }
+  #view-md .grid.aside-collapsed.editor-collapsed { grid-template-columns: 36px 6px 36px 6px 1fr !important; }
+  #view-md aside {
+    background: var(--panel-3); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #view-md .aside-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; background: var(--panel-2);
+    border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted);
+  }
+  #view-md .aside-head button.add {
+    background: var(--accent); color: #1e1f29; border: none;
+    padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 600;
+  }
+  #view-md .doc-list { flex: 1; overflow: auto; padding: 6px 0; }
+  #view-md .doc-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; font-size: 13px; cursor: pointer;
+    border-left: 2px solid transparent; color: var(--muted);
+  }
+  #view-md .doc-item:hover { background: #2a2c37; color: var(--text); }
+  #view-md .doc-item.active { background: #323547; color: var(--text); border-left-color: var(--accent); }
+  #view-md .doc-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #view-md .doc-del { opacity: 0; color: var(--danger); font-size: 11px; padding: 0 6px; background: transparent; border: none; cursor: pointer; }
+  #view-md .doc-item:hover .doc-del { opacity: 1; }
+
+  #view-md .grid.aside-collapsed aside .doc-list,
+  #view-md .grid.aside-collapsed aside .aside-head > span:first-child,
+  #view-md .grid.aside-collapsed aside .aside-head > .add { display: none; }
+  #view-md .grid.aside-collapsed aside .aside-head { justify-content: center; padding: 8px 4px; }
+  #view-md .grid.editor-collapsed .editor-pane > *:not(.pane-head) { display: none; }
+  #view-md .grid.editor-collapsed .editor-pane .pane-head .title-input,
+  #view-md .grid.editor-collapsed .editor-pane .pane-head .status { display: none; }
+  #view-md .grid.editor-collapsed .editor-pane .pane-head { justify-content: center; padding: 8px 4px; }
+
+  #md-editor { flex: 1; }
+  #md-preview {
+    flex: 1; overflow: auto; padding: 24px 32px;
+    background: #fdfdfd; color: #24292f;
+  }
+  #md-preview h1, #md-preview h2, #md-preview h3, #md-preview h4 { margin: 20px 0 10px; line-height: 1.3; scroll-margin-top: 8px; }
+  #md-preview h1 { font-size: 26px; border-bottom: 1px solid #eaecef; padding-bottom: 6px; }
+  #md-preview h2 { font-size: 20px; border-bottom: 1px solid #eaecef; padding-bottom: 4px; }
+  #md-preview h3 { font-size: 16px; }
+  #md-preview p, #md-preview ul, #md-preview ol { margin: 8px 0; line-height: 1.75; }
+  #md-preview code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  #md-preview pre { background: #f6f8fa; padding: 12px; border-radius: 6px; overflow: auto; }
+  #md-preview pre code { background: transparent; padding: 0; }
+  #md-preview blockquote { border-left: 4px solid #dfe2e5; color: #6a737d; padding: 4px 14px; margin: 10px 0; }
+  #md-preview table { border-collapse: collapse; margin: 10px 0; }
+  #md-preview th, #md-preview td { border: 1px solid #dfe2e5; padding: 6px 12px; }
+  #md-preview th { background: #f6f8fa; }
+  #md-preview a { color: #0366d6; }
+  #md-preview img { max-width: 100%; }
+  #md-preview hr { border: none; border-top: 1px solid #eaecef; margin: 16px 0; }
+
+  /* PlantUML 嵌入块 */
+  .plantuml-block {
+    margin: 14px 0; padding: 12px;
+    background: #fafbfc; border: 1px solid #eaecef;
+    border-radius: 6px; text-align: center;
+  }
+  .plantuml-block svg, .plantuml-block img { max-width: 100%; height: auto; }
+  .plantuml-block .ph { color: #999; font-size: 12px; padding: 20px; }
+
+  .err {
+    color: var(--danger); padding: 10px 14px;
+    font-family: monospace; font-size: 12px;
+    white-space: pre-wrap; background: #fff5f5;
+    border: 1px solid #ffd6d6; border-radius: 6px; margin: 10px 0;
+  }
+
+  /* ============================================================
+     共用 JSON 树
+     ============================================================ */
+  .json-block, .json-tree {
+    font-family: "SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    font-size: 13px; color: #24292f;
+  }
+  .json-block { margin: 14px 0; background: #fafbfc; border: 1px solid #eaecef; border-radius: 6px; overflow: hidden; }
+  .json-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #f1f3f5; border-bottom: 1px solid #e4e6ea; font-size: 12px; }
+  .json-toolbar .badge { background: #0366d6; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .jbtn { background: #fff; border: 1px solid #d0d7de; color: #24292f; padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+  .jbtn:hover { background: #f6f8fa; }
+  .json-status { font-size: 11px; margin-left: auto; color: #22863a; }
+  .json-tree-wrap { padding: 10px 14px; line-height: 1.55; }
+
+  .jline { padding-left: 16px; position: relative; }
+  .jnode { padding-left: 16px; position: relative; }
+  .jtoggle { position: absolute; left: 0; top: 0; width: 14px; height: 20px; cursor: pointer; color: #57606a; font-size: 10px; user-select: none; }
+  .jnode:not(.jopen) .jtoggle::before { content: '▸'; }
+  .jnode.jopen .jtoggle::before { content: '▾'; }
+  .jhead { cursor: pointer; }
+  .jnode:not(.jopen) .jchildren, .jnode:not(.jopen) .jfoot { display: none; }
+  .jnode.jopen .jsummary, .jnode.jopen .jclose-inline { display: none; }
+  .jsummary { color: #8c959f; font-style: italic; margin: 0 4px; }
+  .jk { color: #0550ae; } .js { color: #0a3069; }
+  .jn { color: #953800; } .jv { color: #8250df; }
+  .jnull { color: #6e7781; font-style: italic; }
+  .jb { color: #24292f; } .jc { color: #6e7781; }
+  .json-empty { padding: 10px; color: #6e7781; font-style: italic; }
+
+  .json-err { padding: 12px 14px; background: #fff8f8; color: #7a1f1f; border-radius: 0 0 6px 6px; }
+  .json-err-head { font-weight: 600; margin-bottom: 4px; }
+  .json-err-msg { font-size: 12px; color: #a12626; margin-bottom: 6px; }
+  .json-err-ctx { background: #fff; border: 1px solid #f5c6c6; padding: 8px 10px; border-radius: 4px; font-size: 12px; white-space: pre; color: #24292f; overflow-x: auto; font-family: inherit; }
+  .json-warn { background: #fff8e6; border-bottom: 1px solid #ffe2a0; color: #7a5b00; padding: 6px 12px; font-size: 12px; }
+  .muted { color: #6e7781; font-size: 11px; margin-top: 4px; }
+
+  /* ============================================================
+     视图 2：JSON
+     ============================================================ */
+  #view-json .grid { display: grid; grid-template-columns: 1fr 6px 1fr; height: 100%; }
+  #view-json textarea#json-input { flex: 1; }
+  #view-json #json-output {
+    flex: 1; overflow: auto; background: #fdfdfd; color: #24292f;
+    padding: 14px;
+    font-family: "SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    font-size: 13px;
+  }
+
+  /* ============================================================
+     视图 3：JSON Diff
+     ============================================================ */
+  #view-diff { display: none; }
+  #view-diff.active { display: flex; flex-direction: column; }
+  .summary-bar {
+    display: flex; gap: 10px; align-items: center;
+    padding: 8px 16px; background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .pill { padding: 2px 10px; border-radius: 10px; font-weight: 600; font-size: 11px; }
+  .pill.add { background: var(--add-bg); color: var(--add-fg); }
+  .pill.del { background: var(--del-bg); color: var(--del-fg); }
+  .pill.mod { background: var(--mod-bg); color: var(--mod-fg); }
+  .pill.eq  { background: #ddf4ff; color: #0969da; }
+  #view-diff .grid { flex: 1; display: grid; grid-template-columns: 1fr 6px 1fr; overflow: hidden; }
+  #view-diff .editor-wrap {
+    flex: 1; position: relative; overflow: hidden; background: #fdfdfd;
+  }
+  #view-diff .editor-wrap textarea,
+  #view-diff .editor-wrap pre.hl {
+    position: absolute; inset: 0; margin: 0;
+    padding: 12px 14px 12px 56px;
+    font-family: "SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    font-size: 13px; line-height: 1.55; tab-size: 2;
+    overflow: auto; white-space: pre; border: none; outline: none;
+  }
+  #view-diff .editor-wrap textarea { background: transparent; color: #24292f; caret-color: #24292f; resize: none; z-index: 2; }
+  #view-diff .editor-wrap pre.hl { background: #fdfdfd; color: #24292f; z-index: 1; pointer-events: none; }
+  #view-diff .editor-wrap pre.hl .ln {
+    display: block; position: relative;
+    padding: 0 8px; margin: 0 -14px 0 -56px; padding-left: 56px;
+  }
+  #view-diff .editor-wrap pre.hl .ln::before {
+    content: attr(data-ln); position: absolute; left: 0; top: 0; width: 44px;
+    text-align: right; padding-right: 8px; color: #b1b3ba; font-size: 11px; user-select: none;
+  }
+  #view-diff .editor-wrap pre.hl .ln.add { background: var(--add-bg); }
+  #view-diff .editor-wrap pre.hl .ln.del { background: var(--del-bg); }
+  #view-diff .editor-wrap pre.hl .ln.mod { background: var(--mod-bg); }
+
+  /* ============================================================
+     视图 4：PlantUML
+     ============================================================ */
+  #view-puml .grid { display: grid; grid-template-columns: 1fr 6px 1fr; height: 100%; }
+  #view-puml textarea#puml-input { flex: 1; }
+  #view-puml #puml-output {
+    flex: 1; overflow: auto; background: #fdfdfd;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 20px;
+  }
+  #view-puml #puml-output svg, #view-puml #puml-output img {
+    max-width: none; transition: transform .1s; transform-origin: top center;
+  }
+  .zoom-ctrl { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+  .zoom-ctrl button { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 2px 8px; border-radius: 4px; cursor: pointer; }
+  .loading { color: #6e7781; padding: 20px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📝 实时预览</h1>
+  <nav class="nav">
+    <span class="nav-link" data-tab="md">综合</span>
+    <span class="nav-link" data-tab="json">JSON</span>
+    <span class="nav-link" data-tab="diff">JSON Diff</span>
+    <span class="nav-link" data-tab="puml">PlantUML</span>
+  </nav>
+  <div class="spacer"></div>
+  <!-- 各视图自己的工具栏（同位置切换显示） -->
+  <div class="actions" id="actions-md" data-actions="md">
+    <button class="btn" id="btn-md-sample">加载示例</button>
+    <button class="btn" id="btn-md-md">导出 MD</button>
+    <button class="btn warn" id="btn-md-pdf">导出 PDF</button>
+    <button class="btn primary" id="btn-md-html">导出 HTML</button>
+  </div>
+  <div class="actions" id="actions-json" data-actions="json" style="display:none">
+    <button class="btn" id="btn-json-format">格式化</button>
+    <button class="btn" id="btn-json-min">压缩</button>
+    <button class="btn" id="btn-json-expand">全部展开</button>
+    <button class="btn" id="btn-json-collapse">全部折叠</button>
+    <button class="btn" id="btn-json-sample">示例</button>
+    <button class="btn" id="btn-json-clear">清空</button>
+    <button class="btn primary" id="btn-json-copy">复制结果</button>
+  </div>
+  <div class="actions" id="actions-diff" data-actions="diff" style="display:none">
+    <button class="btn" id="btn-diff-format">格式化两边</button>
+    <button class="btn" id="btn-diff-sample">示例</button>
+    <button class="btn" id="btn-diff-swap">⇄ 交换</button>
+    <button class="btn" id="btn-diff-clear">清空</button>
+    <button class="btn primary" id="btn-diff-run">对比</button>
+  </div>
+  <div class="actions" id="actions-puml" data-actions="puml" style="display:none">
+    <button class="btn" id="btn-puml-sample">示例</button>
+    <button class="btn" id="btn-puml-clear">清空</button>
+    <button class="btn" id="btn-puml-url">复制分享链接</button>
+    <button class="btn warn" id="btn-puml-png">导出 PNG</button>
+    <button class="btn primary" id="btn-puml-svg">导出 SVG</button>
+  </div>
+</header>
+
+<!-- ============================================================
+     视图 1：综合（Markdown）
+     ============================================================ -->
+<div class="view" id="view-md">
+  <div class="grid" id="md-grid">
+    <aside>
+      <div class="aside-head">
+        <span>文章列表</span>
+        <button class="add" id="btn-md-new">+ 新建</button>
+        <button class="collapse-btn" id="btn-md-collapse-aside">◀</button>
+      </div>
+      <div class="doc-list" id="md-doc-list"></div>
+    </aside>
+    <div class="divider" id="md-divider1"></div>
+    <section class="pane editor-pane">
+      <div class="pane-head">
+        <button class="collapse-btn" id="btn-md-collapse-editor">◀</button>
+        <input class="title-input" id="md-title" placeholder="文章标题…" />
+        <span class="status" id="md-charcnt">0 字</span>
+      </div>
+      <textarea id="md-editor" spellcheck="false"></textarea>
+    </section>
+    <div class="divider" id="md-divider2"></div>
+    <section class="pane">
+      <div class="pane-head">
+        <span>预览</span>
+        <span class="status" id="md-status">就绪</span>
+      </div>
+      <div id="md-preview"></div>
+    </section>
+  </div>
+</div>
+
+<!-- ============================================================
+     视图 2：JSON
+     ============================================================ -->
+<div class="view" id="view-json">
+  <div class="grid">
+    <section class="pane">
+      <div class="pane-head"><span>输入</span><span id="json-instat">0 字</span></div>
+      <textarea id="json-input" spellcheck="false" placeholder='粘贴 JSON…'></textarea>
+    </section>
+    <div class="divider" id="json-divider"></div>
+    <section class="pane">
+      <div class="pane-head"><span>可视化</span><span id="json-outstat">就绪</span></div>
+      <div id="json-output"></div>
+    </section>
+  </div>
+</div>
+
+<!-- ============================================================
+     视图 3：JSON Diff
+     ============================================================ -->
+<div class="view" id="view-diff">
+  <div class="summary-bar" id="diff-summary">
+    <span class="muted">输入两边 JSON 自动对比</span>
+  </div>
+  <div class="grid">
+    <section class="pane">
+      <div class="pane-head"><span>左侧（旧）</span><span id="diff-lstat">0 字</span></div>
+      <div class="editor-wrap">
+        <pre class="hl" id="diff-lhl"></pre>
+        <textarea id="diff-left" spellcheck="false" placeholder="粘贴旧版 JSON…"></textarea>
+      </div>
+    </section>
+    <div class="divider" id="diff-divider"></div>
+    <section class="pane">
+      <div class="pane-head"><span>右侧（新）</span><span id="diff-rstat">0 字</span></div>
+      <div class="editor-wrap">
+        <pre class="hl" id="diff-rhl"></pre>
+        <textarea id="diff-right" spellcheck="false" placeholder="粘贴新版 JSON…"></textarea>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ============================================================
+     视图 4：PlantUML
+     ============================================================ -->
+<div class="view" id="view-puml">
+  <div class="grid">
+    <section class="pane">
+      <div class="pane-head"><span>PlantUML 源码</span><span id="puml-instat">0 字</span></div>
+      <textarea id="puml-input" spellcheck="false" placeholder="@startuml ... @enduml"></textarea>
+    </section>
+    <div class="divider" id="puml-divider"></div>
+    <section class="pane">
+      <div class="pane-head">
+        <span>渲染结果</span>
+        <div class="zoom-ctrl">
+          <button id="puml-zoom-out">−</button>
+          <span id="puml-zoom-val">100%</span>
+          <button id="puml-zoom-in">＋</button>
+          <button id="puml-zoom-reset">重置</button>
+          <span id="puml-status" style="margin-left:8px">就绪</span>
+        </div>
+      </div>
+      <div id="puml-output"><div class="loading">输入 PlantUML 代码以预览…</div></div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Tab 切换
+============================================================ */
+const TAB_KEY = 'lp_tab';
+const tabs = document.querySelectorAll('.nav-link');
+const views = { md: 'view-md', json: 'view-json', diff: 'view-diff', puml: 'view-puml' };
+function activateTab(name) {
+  if (!views[name]) name = 'md';
+  Object.entries(views).forEach(([k, id]) => {
+    document.getElementById(id).classList.toggle('active', k === name);
+  });
+  tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.actions').forEach(a => {
+    a.style.display = (a.dataset.actions === name) ? '' : 'none';
+  });
+  location.hash = name;
+  localStorage.setItem(TAB_KEY, name);
+  // 视图切换时触发对应初始化
+  if (name === 'json')   ensureJsonRender();
+  if (name === 'diff')   ensureDiffRender();
+  if (name === 'puml')   ensurePumlRender();
+}
+tabs.forEach(t => t.addEventListener('click', () => activateTab(t.dataset.tab)));
+window.addEventListener('hashchange', () => activateTab(location.hash.replace('#', '')));
+
+/* ============================================================
+   通用工具
+============================================================ */
+function escapeHtml(s) {
+  return (s == null ? '' : s + '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+function looseJsonParse(src) {
+  let s = src
+    .replace(/,(\s*[\]}])/g, '$1')
+    .replace(/([{\s,])([A-Za-z_][\w$]*)\s*:/g, '$1"$2":')
+    .replace(/'((?:[^'\\]|\\.)*)'/g, (_, g) => JSON.stringify(g.replace(/\\'/g, "'")));
+  return JSON.parse(s);
+}
+function safeParse(src) {
+  try { return JSON.parse(src); } catch { return looseJsonParse(src); }
+}
+function errorLocation(src, err) {
+  const m = /position\s+(\d+)/i.exec(err.message || '');
+  if (!m) return null;
+  const pos = Math.min(parseInt(m[1], 10), src.length);
+  const before = src.slice(0, pos);
+  const line = before.split('\n').length;
+  const col  = pos - before.lastIndexOf('\n');
+  const lines = src.split('\n');
+  const lo = Math.max(1, line - 1), hi = Math.min(lines.length, line + 1);
+  let ctx = '';
+  for (let i = lo; i <= hi; i++) {
+    const mark = i === line ? '▶ ' : '  ';
+    ctx += `${mark}${String(i).padStart(3,' ')}| ${lines[i-1]}\n`;
+    if (i === line) ctx += `      ${' '.repeat(Math.max(0, col - 1))}^\n`;
+  }
+  return { line, col, ctx };
+}
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+function bindDivider(el, getCols, setCols) {
+  let dragging = false;
+  el.addEventListener('mousedown', () => { dragging = true; document.body.style.cursor = 'col-resize'; });
+  window.addEventListener('mouseup', () => { dragging = false; document.body.style.cursor = ''; });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    setCols(e.clientX);
+  });
+}
+
+/* ============================================================
+   PlantUML 编码（共享）
+============================================================ */
+function encode6bit(b) {
+  if (b < 10) return String.fromCharCode(48 + b);
+  b -= 10; if (b < 26) return String.fromCharCode(65 + b);
+  b -= 26; if (b < 26) return String.fromCharCode(97 + b);
+  b -= 26; if (b === 0) return '-';
+  if (b === 1) return '_'; return '?';
+}
+function append3bytes(b1, b2, b3) {
+  const c1 = b1 >> 2, c2 = ((b1 & 0x3) << 4) | (b2 >> 4),
+        c3 = ((b2 & 0xF) << 2) | (b3 >> 6), c4 = b3 & 0x3F;
+  return encode6bit(c1 & 0x3F) + encode6bit(c2 & 0x3F) + encode6bit(c3 & 0x3F) + encode6bit(c4 & 0x3F);
+}
+function encode64(data) {
+  let r = '';
+  for (let i = 0; i < data.length; i += 3) {
+    if (i + 2 === data.length)      r += append3bytes(data[i], data[i+1], 0);
+    else if (i + 1 === data.length) r += append3bytes(data[i], 0, 0);
+    else                             r += append3bytes(data[i], data[i+1], data[i+2]);
+  }
+  return r;
+}
+function plantumlEncode(text) {
+  return encode64(pako.deflateRaw(new TextEncoder().encode(text), { level: 9 }));
+}
+function plantumlUrl(code, fmt = 'svg') {
+  return `https://www.plantuml.com/plantuml/${fmt}/${plantumlEncode(code)}`;
+}
+function fetchWithTimeout(url, ms = 8000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(t));
+}
+
+/* ============================================================
+   JSON 树渲染（共享）
+============================================================ */
+function renderJsonTree(value, key, isLast) {
+  const type = Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value;
+  const keySpan = key !== undefined
+    ? `<span class="jk">${escapeHtml(String(key))}</span><span class="jc">: </span>` : '';
+  const comma = isLast ? '' : '<span class="jc">,</span>';
+  if (type === 'object' || type === 'array') {
+    const entries = type === 'array' ? value.map((v, i) => [i, v]) : Object.entries(value);
+    const open = type === 'array' ? '[' : '{', close = type === 'array' ? ']' : '}';
+    if (entries.length === 0)
+      return `<div class="jline">${keySpan}<span class="jb">${open}${close}</span>${comma}</div>`;
+    const summary = type === 'array'
+      ? `Array(${entries.length})`
+      : `{ ${entries.slice(0,3).map(([k]) => k).join(', ')}${entries.length > 3 ? ', …' : ''} }`;
+    let inner = '';
+    entries.forEach(([k, v], idx) =>
+      inner += renderJsonTree(v, type === 'array' ? undefined : k, idx === entries.length - 1));
+    return `<div class="jnode jopen">
+      <span class="jtoggle"></span>
+      <span class="jhead">${keySpan}<span class="jb">${open}</span>
+        <span class="jsummary">${escapeHtml(summary)}</span>
+        <span class="jb jclose-inline">${close}</span>${comma}</span>
+      <div class="jchildren">${inner}</div>
+      <div class="jline jfoot"><span class="jb">${close}</span>${comma}</div>
+    </div>`;
+  }
+  let html;
+  if (type === 'string')       html = `<span class="js">${escapeHtml(JSON.stringify(value))}</span>`;
+  else if (type === 'number')  html = `<span class="jn">${value}</span>`;
+  else if (type === 'boolean') html = `<span class="jv">${value}</span>`;
+  else if (type === 'null')    html = `<span class="jnull">null</span>`;
+  else                         html = escapeHtml(String(value));
+  return `<div class="jline">${keySpan}${html}${comma}</div>`;
+}
+function bindJsonToggles(root) {
+  root.querySelectorAll('.jnode').forEach(n => {
+    n.querySelector('.jtoggle').onclick = () => n.classList.toggle('jopen');
+    n.querySelector('.jhead').addEventListener('click', (e) => {
+      if (e.target.closest('.jtoggle')) return;
+      n.classList.toggle('jopen');
+    });
+  });
+}
+
+/* ============================================================
+   视图 1：综合（Markdown）
+============================================================ */
+const mdGrid    = document.getElementById('md-grid');
+const mdEditor  = document.getElementById('md-editor');
+const mdPreview = document.getElementById('md-preview');
+const mdTitle   = document.getElementById('md-title');
+const mdDocList = document.getElementById('md-doc-list');
+const mdCharCnt = document.getElementById('md-charcnt');
+const mdStatus  = document.getElementById('md-status');
+
+const slugCount = {};
+function slugify(text) {
+  const s = String(text).toLowerCase()
+    .replace(/[\s\u00A0]+/g, '-')
+    .replace(/[^\w\u4e00-\u9fa5-]/g, '').slice(0, 80) || 'h';
+  slugCount[s] = (slugCount[s] || 0) + 1;
+  return slugCount[s] === 1 ? s : `${s}-${slugCount[s]}`;
+}
+function buildMdRenderer() {
+  const r = new marked.Renderer();
+  r.code = function(code, lang) {
+    if (typeof code === 'object' && code !== null) { lang = code.lang; code = code.text; }
+    const l = (lang || '').toLowerCase();
+    if (l === 'plantuml') {
+      const b64 = btoa(unescape(encodeURIComponent(code)));
+      return `<div class="plantuml-block" data-code="${b64}"><div class="ph">PlantUML 渲染中…</div></div>`;
+    }
+    if (l === 'json' || l === 'json5') {
+      const b64 = btoa(unescape(encodeURIComponent(code)));
+      return `<div class="json-block" data-code="${b64}"></div>`;
+    }
+    let html;
+    try {
+      html = lang && hljs.getLanguage(lang) ? hljs.highlight(code, { language: lang }).value : hljs.highlightAuto(code).value;
+    } catch { html = code; }
+    return `<pre><code class="hljs language-${lang||''}">${html}</code></pre>`;
+  };
+  r.heading = function(text, level) {
+    let raw = text, html = text;
+    if (typeof text === 'object' && text !== null) {
+      raw = text.text || ''; level = text.depth;
+      try { html = this.parser ? this.parser.parseInline(text.tokens || []) : raw; } catch { html = raw; }
+    }
+    const id = slugify(String(raw).replace(/<[^>]+>/g, ''));
+    return `<h${level} id="${id}">${html}</h${level}>`;
+  };
+  return r;
+}
+function renderMarkdown(md) {
+  for (const k in slugCount) delete slugCount[k];
+  marked.setOptions({ gfm: true, breaks: false, renderer: buildMdRenderer() });
+  return DOMPurify.sanitize(marked.parse(md || ''), { ADD_ATTR: ['data-code', 'id'] });
+}
+
+const pumlCache = new Map();
+async function renderOnePuml(el) {
+  const code = decodeURIComponent(escape(atob(el.dataset.code)));
+  const url = plantumlUrl(code);
+  if (pumlCache.has(code)) { el.innerHTML = pumlCache.get(code); return 'ok'; }
+  try {
+    const r = await fetchWithTimeout(url, 6000);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const svg = await r.text();
+    pumlCache.set(code, svg);
+    el.innerHTML = svg;
+    return 'ok';
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? '请求超时（网络不可达？）' : e.message;
+    el.innerHTML = `<div class="err">PlantUML 渲染失败：${msg}\n备用：<a href="${url}" target="_blank">在 plantuml.com 打开</a></div>`;
+    return 'err';
+  }
+}
+async function hydratePlantUML(root) {
+  const blocks = [...root.querySelectorAll('.plantuml-block[data-code]')];
+  if (!blocks.length) return { total: 0, ok: 0, err: 0 };
+  const results = await Promise.allSettled(blocks.map(renderOnePuml));
+  const ok = results.filter(r => r.status === 'fulfilled' && r.value === 'ok').length;
+  return { total: results.length, ok, err: results.length - ok };
+}
+function hydrateJsonBlocks(root) {
+  root.querySelectorAll('.json-block[data-code]').forEach(el => {
+    const src = decodeURIComponent(escape(atob(el.dataset.code))).trim();
+    if (!src) { el.innerHTML = '<div class="json-empty">（空）</div>'; return; }
+    let data, warn = '';
+    try { data = JSON.parse(src); }
+    catch (e) {
+      try { data = looseJsonParse(src); warn = `⚠️ 已自动修复非严格 JSON：<em>${escapeHtml(e.message)}</em>`; }
+      catch (e2) {
+        const loc = errorLocation(src, e);
+        const locHtml = loc ? `<pre class="json-err-ctx">${escapeHtml(loc.ctx)}</pre><div class="muted">第 ${loc.line} 行 ${loc.col} 列</div>` : '';
+        el.innerHTML = `<div class="json-err"><div class="json-err-head">❌ JSON 解析失败</div><div class="json-err-msg">${escapeHtml(e.message)}</div>${locHtml}</div>`;
+        return;
+      }
+    }
+    el.innerHTML = `
+      <div class="json-toolbar">
+        <span class="badge">JSON</span>
+        <button class="jbtn" data-act="expand">展开</button>
+        <button class="jbtn" data-act="collapse">折叠</button>
+        <button class="jbtn" data-act="copy">复制</button>
+        <span class="json-status"></span>
+      </div>
+      ${warn ? `<div class="json-warn">${warn}</div>` : ''}
+      <div class="json-tree-wrap">${renderJsonTree(data, undefined, true)}</div>`;
+    bindJsonToggles(el);
+    const setAll = (open) => el.querySelectorAll('.jnode').forEach(n => n.classList.toggle('jopen', open));
+    el.querySelector('[data-act="expand"]').onclick   = () => setAll(true);
+    el.querySelector('[data-act="collapse"]').onclick = () => setAll(false);
+    el.querySelector('[data-act="copy"]').onclick = async () => {
+      try { await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+            const st = el.querySelector('.json-status'); st.textContent = '已复制 ✓'; setTimeout(() => st.textContent = '', 1200);
+          } catch (e) { alert('复制失败：' + e.message); }
+    };
+  });
+}
+
+/* 文章系统 */
+const LS_DOCS = 'lp2_docs', LS_CUR = 'lp2_current';
+let mdDocs = JSON.parse(localStorage.getItem(LS_DOCS) || '{}');
+let mdCurrent = localStorage.getItem(LS_CUR);
+function newId() { return 'd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function saveDocs() { localStorage.setItem(LS_DOCS, JSON.stringify(mdDocs)); }
+function ensureMdDoc() {
+  if (!Object.keys(mdDocs).length) {
+    const id = newId();
+    mdDocs[id] = { id, title: '欢迎', content: SAMPLE_MD, updatedAt: Date.now() };
+    mdCurrent = id; saveDocs(); localStorage.setItem(LS_CUR, id);
+  } else if (!mdCurrent || !mdDocs[mdCurrent]) {
+    mdCurrent = Object.keys(mdDocs)[0];
+    localStorage.setItem(LS_CUR, mdCurrent);
+  }
+}
+function renderDocList() {
+  const items = Object.values(mdDocs).sort((a,b) => b.updatedAt - a.updatedAt);
+  mdDocList.innerHTML = '';
+  items.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'doc-item' + (d.id === mdCurrent ? ' active' : '');
+    el.innerHTML = `<span class="doc-title" title="${escapeHtml(d.title)}">${escapeHtml(d.title || '(无标题)')}</span>
+      <button class="doc-del" data-id="${d.id}">✕</button>`;
+    el.onclick = (e) => {
+      if (e.target.classList.contains('doc-del')) return;
+      switchDoc(d.id);
+    };
+    el.querySelector('.doc-del').onclick = (e) => { e.stopPropagation(); deleteDoc(d.id); };
+    mdDocList.appendChild(el);
+  });
+}
+function switchDoc(id) {
+  mdCurrent = id; localStorage.setItem(LS_CUR, id);
+  const d = mdDocs[id];
+  mdTitle.value = d.title; mdEditor.value = d.content;
+  renderDocList(); doMdRender();
+}
+function newDoc() {
+  const id = newId();
+  mdDocs[id] = { id, title: '未命名', content: '# 未命名\n\n', updatedAt: Date.now() };
+  saveDocs(); switchDoc(id); mdTitle.focus(); mdTitle.select();
+}
+function deleteDoc(id) {
+  if (!confirm(`删除「${mdDocs[id].title}」？`)) return;
+  delete mdDocs[id]; saveDocs();
+  if (id === mdCurrent) {
+    const rest = Object.keys(mdDocs);
+    if (!rest.length) ensureMdDoc(); else switchDoc(rest[0]);
+  } else renderDocList();
+}
+function persistMdCurrent() {
+  if (!mdCurrent || !mdDocs[mdCurrent]) return;
+  mdDocs[mdCurrent].title = mdTitle.value || '(无标题)';
+  mdDocs[mdCurrent].content = mdEditor.value;
+  mdDocs[mdCurrent].updatedAt = Date.now();
+  saveDocs();
+}
+
+let mdTimer = null;
+function doMdRender() {
+  mdCharCnt.textContent = `${mdEditor.value.length} 字`;
+  mdStatus.textContent = '渲染中…'; mdStatus.style.color = 'var(--accent)';
+  clearTimeout(mdTimer);
+  mdTimer = setTimeout(() => {
+    mdPreview.innerHTML = renderMarkdown(mdEditor.value);
+    bindMdAnchors();
+    hydrateJsonBlocks(mdPreview);
+    const blockCount = mdPreview.querySelectorAll('.plantuml-block[data-code]').length;
+    mdStatus.textContent = '已渲染'; mdStatus.style.color = 'var(--accent-2)';
+    if (blockCount) {
+      mdStatus.textContent = `已渲染，图示 0/${blockCount}`; mdStatus.style.color = 'var(--accent)';
+      hydratePlantUML(mdPreview).then(({ total, ok, err }) => {
+        if (!err) { mdStatus.textContent = `已渲染（含 ${total} 图）`; mdStatus.style.color = 'var(--accent-2)'; }
+        else      { mdStatus.textContent = `图示 ${ok}/${total} 成功`; mdStatus.style.color = 'var(--warn)'; }
+      });
+    }
+  }, 250);
+}
+function bindMdAnchors() {
+  mdPreview.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.onclick = (e) => {
+      const id = decodeURIComponent(a.getAttribute('href').slice(1));
+      const t = mdPreview.querySelector(`[id="${CSS.escape(id)}"]`);
+      if (t) { e.preventDefault(); mdPreview.scrollTo({ top: t.offsetTop - mdPreview.offsetTop - 10, behavior: 'smooth' }); }
+    };
+  });
+}
+
+mdEditor.addEventListener('input', () => { persistMdCurrent(); doMdRender(); });
+mdTitle.addEventListener('input', () => { persistMdCurrent(); renderDocList(); });
+mdEditor.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = mdEditor.selectionStart, en = mdEditor.selectionEnd;
+    mdEditor.value = mdEditor.value.slice(0, s) + '  ' + mdEditor.value.slice(en);
+    mdEditor.selectionStart = mdEditor.selectionEnd = s + 2;
+    persistMdCurrent(); doMdRender();
+  }
+});
+document.getElementById('btn-md-new').onclick = newDoc;
+document.getElementById('btn-md-sample').onclick = () => {
+  mdEditor.value = SAMPLE_MD; mdTitle.value = '示例文章';
+  persistMdCurrent(); renderDocList(); doMdRender();
+};
+document.getElementById('btn-md-md').onclick = () => {
+  const title = mdDocs[mdCurrent].title || 'document';
+  downloadBlob(new Blob([mdEditor.value], { type: 'text/markdown' }), title + '.md');
+};
+document.getElementById('btn-md-html').onclick = () => {
+  const title = mdDocs[mdCurrent].title || 'document';
+  const wrap = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+<style>body{font-family:-apple-system,"PingFang SC",sans-serif;max-width:860px;margin:40px auto;padding:0 24px;color:#24292f;line-height:1.7}
+pre{background:#f6f8fa;padding:12px;border-radius:6px;overflow:auto}code{background:#f4f4f4;padding:2px 6px;border-radius:4px}
+pre code{background:transparent;padding:0}table{border-collapse:collapse}th,td{border:1px solid #dfe2e5;padding:6px 12px}th{background:#f6f8fa}
+blockquote{border-left:4px solid #dfe2e5;color:#6a737d;padding:4px 14px;margin:10px 0}
+.plantuml-block{margin:14px 0;padding:12px;background:#fafbfc;border:1px solid #eaecef;border-radius:6px;text-align:center}
+.plantuml-block svg,.plantuml-block img{max-width:100%}
+</style></head><body>${mdPreview.innerHTML}</body></html>`;
+  downloadBlob(new Blob([wrap], { type: 'text/html' }), title + '.html');
+};
+document.getElementById('btn-md-pdf').onclick = async () => {
+  const title = mdDocs[mdCurrent].title || 'document';
+  const oldStatus = mdStatus.textContent;
+  mdStatus.textContent = '生成 PDF…'; mdStatus.style.color = 'var(--warn)';
+  const clone = mdPreview.cloneNode(true);
+  clone.style.cssText = 'position:absolute;left:-99999px;top:0;width:820px;background:#fff;padding:24px 32px;color:#24292f;font-family:-apple-system,"PingFang SC",sans-serif;line-height:1.7;';
+  document.body.appendChild(clone);
+  clone.querySelectorAll('svg').forEach(svg => {
+    if (!svg.getAttribute('width') && svg.viewBox?.baseVal) {
+      svg.setAttribute('width', svg.viewBox.baseVal.width);
+      svg.setAttribute('height', svg.viewBox.baseVal.height);
+    }
+  });
+  try {
+    const canvas = await html2canvas(clone, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+    const imgW = pageW, imgH = canvas.height * imgW / canvas.width;
+    let heightLeft = imgH, position = 0;
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
+    heightLeft -= pageH;
+    while (heightLeft > 0) { position -= pageH; pdf.addPage(); pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH); heightLeft -= pageH; }
+    pdf.save(title + '.pdf');
+    mdStatus.textContent = '已导出 PDF'; mdStatus.style.color = 'var(--accent-2)';
+  } catch (err) { alert('PDF 导出失败：' + err.message); mdStatus.textContent = oldStatus; }
+  finally { clone.remove(); }
+};
+
+/* 折叠 */
+const COLLAPSE_KEY = 'lp_collapse';
+function applyCollapse() {
+  const st = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}');
+  mdGrid.classList.toggle('aside-collapsed', !!st.aside);
+  mdGrid.classList.toggle('editor-collapsed', !!st.editor);
+  document.getElementById('btn-md-collapse-aside').textContent  = st.aside  ? '▶' : '◀';
+  document.getElementById('btn-md-collapse-editor').textContent = st.editor ? '▶' : '◀';
+}
+function toggleCollapse(which) {
+  const st = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}');
+  st[which] = !st[which];
+  localStorage.setItem(COLLAPSE_KEY, JSON.stringify(st));
+  applyCollapse();
+}
+document.getElementById('btn-md-collapse-aside').onclick  = () => toggleCollapse('aside');
+document.getElementById('btn-md-collapse-editor').onclick = () => toggleCollapse('editor');
+
+/* MD 分隔条 */
+bindDivider(document.getElementById('md-divider1'), null, (x) => {
+  const aside = Math.max(150, Math.min(400, x));
+  mdGrid.style.gridTemplateColumns = `${aside}px 6px 1fr 6px 1fr`;
+});
+bindDivider(document.getElementById('md-divider2'), null, (x) => {
+  const cols = mdGrid.style.gridTemplateColumns.split(' ');
+  const asidePx = parseFloat(cols[0]) || 220;
+  const w = window.innerWidth;
+  const rest = w - asidePx - 12;
+  const mid = Math.max(200, Math.min(rest - 200, x - asidePx - 12));
+  mdGrid.style.gridTemplateColumns = `${asidePx}px 6px ${mid}px 6px 1fr`;
+});
+
+/* ============================================================
+   视图 2：JSON
+============================================================ */
+const jsonInput = document.getElementById('json-input');
+const jsonOut   = document.getElementById('json-output');
+const jsonInStat = document.getElementById('json-instat');
+const jsonOutStat = document.getElementById('json-outstat');
+let jsonData = null;
+
+function renderJsonView() {
+  const src = jsonInput.value;
+  jsonInStat.textContent = `${src.length} 字`;
+  if (!src.trim()) { jsonOut.innerHTML = '<div class="muted" style="padding:14px">输入 JSON 以可视化…</div>'; jsonOutStat.textContent = '空'; jsonData = null; return; }
+  let data, warn = '';
+  try { data = JSON.parse(src); }
+  catch (e) {
+    try { data = looseJsonParse(src); warn = `⚠️ 非严格 JSON，已自动修复<br><span class="muted">${escapeHtml(e.message)}</span>`; }
+    catch {
+      const loc = errorLocation(src, e);
+      const locHtml = loc ? `<pre class="json-err-ctx">${escapeHtml(loc.ctx)}</pre><div class="muted">第 ${loc.line} 行 ${loc.col} 列</div>` : '';
+      jsonOut.innerHTML = `<div class="json-err"><div class="json-err-head">❌ JSON 解析失败</div><div>${escapeHtml(e.message)}</div>${locHtml}</div>`;
+      jsonOutStat.textContent = '解析失败'; jsonData = null; return;
+    }
+  }
+  jsonData = data;
+  jsonOut.innerHTML = (warn ? `<div class="json-warn">${warn}</div>` : '') + renderJsonTree(data, undefined, true);
+  bindJsonToggles(jsonOut);
+  jsonOutStat.textContent = '已渲染';
+}
+function setAllJsonNodes(open) {
+  jsonOut.querySelectorAll('.jnode').forEach(n => n.classList.toggle('jopen', open));
+}
+jsonInput.addEventListener('input', () => { renderJsonView(); localStorage.setItem('lp_json_input', jsonInput.value); });
+document.getElementById('btn-json-format').onclick = () => {
+  if (jsonData !== null) jsonInput.value = JSON.stringify(jsonData, null, 2);
+  renderJsonView(); setAllJsonNodes(true); localStorage.setItem('lp_json_input', jsonInput.value);
+};
+document.getElementById('btn-json-min').onclick = () => {
+  if (jsonData !== null) jsonInput.value = JSON.stringify(jsonData);
+  renderJsonView(); setAllJsonNodes(false); localStorage.setItem('lp_json_input', jsonInput.value);
+};
+document.getElementById('btn-json-expand').onclick   = () => setAllJsonNodes(true);
+document.getElementById('btn-json-collapse').onclick = () => setAllJsonNodes(false);
+document.getElementById('btn-json-sample').onclick = () => { jsonInput.value = SAMPLE_JSON; renderJsonView(); localStorage.setItem('lp_json_input', jsonInput.value); };
+document.getElementById('btn-json-clear').onclick  = () => { jsonInput.value = ''; renderJsonView(); localStorage.setItem('lp_json_input', ''); };
+document.getElementById('btn-json-copy').onclick = async () => {
+  if (jsonData === null) return alert('没有有效 JSON');
+  await navigator.clipboard.writeText(JSON.stringify(jsonData, null, 2));
+  jsonOutStat.textContent = '已复制 ✓'; setTimeout(() => jsonOutStat.textContent = '已渲染', 1200);
+};
+bindDivider(document.getElementById('json-divider'), null, (x) => {
+  const w = window.innerWidth;
+  const left = Math.max(200, Math.min(w - 200, x));
+  document.querySelector('#view-json .grid').style.gridTemplateColumns = `${left}px 6px 1fr`;
+});
+let jsonInited = false;
+function ensureJsonRender() {
+  if (!jsonInited) {
+    jsonInput.value = localStorage.getItem('lp_json_input') || SAMPLE_JSON;
+    jsonInited = true;
+  }
+  renderJsonView();
+}
+
+/* ============================================================
+   视图 3：JSON Diff
+============================================================ */
+const diffLeft = document.getElementById('diff-left');
+const diffRight = document.getElementById('diff-right');
+const diffLhl = document.getElementById('diff-lhl');
+const diffRhl = document.getElementById('diff-rhl');
+const diffSummary = document.getElementById('diff-summary');
+const diffLstat = document.getElementById('diff-lstat');
+const diffRstat = document.getElementById('diff-rstat');
+
+function stringifyWithMap(value) {
+  const pathToLine = new Map();
+  const lines = [];
+  const indent = '  ';
+  const pkey = (arr) => arr.join('\u0001');
+  function emit(v, path, prefix, suffix) {
+    if (v === null || typeof v !== 'object') {
+      lines.push(prefix + JSON.stringify(v) + suffix);
+      pathToLine.set(pkey(path), lines.length); return;
+    }
+    if (Array.isArray(v)) {
+      if (!v.length) { lines.push(prefix + '[]' + suffix); pathToLine.set(pkey(path), lines.length); return; }
+      lines.push(prefix + '['); pathToLine.set(pkey(path), lines.length);
+      const baseIndent = prefix.match(/^\s*/)[0]; const ci = baseIndent + indent;
+      v.forEach((item, i) => emit(item, [...path, i], ci, i < v.length - 1 ? ',' : ''));
+      lines.push(baseIndent + ']' + suffix); return;
+    }
+    const keys = Object.keys(v);
+    if (!keys.length) { lines.push(prefix + '{}' + suffix); pathToLine.set(pkey(path), lines.length); return; }
+    lines.push(prefix + '{'); pathToLine.set(pkey(path), lines.length);
+    const baseIndent = prefix.match(/^\s*/)[0]; const ci = baseIndent + indent;
+    keys.forEach((k, i) => emit(v[k], [...path, k], ci + JSON.stringify(k) + ': ', i < keys.length - 1 ? ',' : ''));
+    lines.push(baseIndent + '}' + suffix);
+  }
+  emit(value, [], '', '');
+  return { text: lines.join('\n'), pathToLine, lines };
+}
+function deepEqual(a, b) {
+  if (a === b) return true;
+  if (typeof a !== typeof b || a === null || b === null) return a === b;
+  if (typeof a !== 'object') return a === b;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) { if (a.length !== b.length) return false; for (let i = 0; i < a.length; i++) if (!deepEqual(a[i], b[i])) return false; return true; }
+  const ka = Object.keys(a), kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) if (!deepEqual(a[k], b[k])) return false;
+  return true;
+}
+function diffPaths(a, b, path, out) {
+  if (deepEqual(a, b)) return;
+  const isObj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
+  if (isObj(a) && isObj(b)) {
+    const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])];
+    for (const k of keys) {
+      if (!(k in a)) out.push({ kind: 'add', path: [...path, k] });
+      else if (!(k in b)) out.push({ kind: 'del', path: [...path, k] });
+      else diffPaths(a[k], b[k], [...path, k], out);
+    }
+    return;
+  }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    const n = Math.max(a.length, b.length);
+    for (let i = 0; i < n; i++) {
+      if (i >= a.length) out.push({ kind: 'add', path: [...path, i] });
+      else if (i >= b.length) out.push({ kind: 'del', path: [...path, i] });
+      else diffPaths(a[i], b[i], [...path, i], out);
+    }
+    return;
+  }
+  out.push({ kind: 'mod', path: [...path] });
+}
+function markRange(marks, startLine, mapInfo, kind) {
+  const lines = mapInfo.lines;
+  const startIndent = lines[startLine - 1].match(/^\s*/)[0].length;
+  marks.set(startLine, kind);
+  const opener = lines[startLine - 1].trimEnd().slice(-1);
+  if (opener !== '[' && opener !== '{') return;
+  for (let i = startLine; i < lines.length; i++) {
+    const ind = lines[i].match(/^\s*/)[0].length;
+    const trimmed = lines[i].trim();
+    marks.set(i + 1, kind);
+    if (ind === startIndent && (trimmed.startsWith(']') || trimmed.startsWith('}'))) break;
+  }
+}
+function paintDiffEditor(taEl, hlEl, mapInfo, marks) {
+  taEl.value = mapInfo.text;
+  hlEl.innerHTML = mapInfo.lines.map((ln, i) => {
+    const lno = i + 1;
+    const k = marks.get(lno);
+    return `<span class="ln${k ? ' ' + k : ''}" data-ln="${lno}">${escapeHtml(ln) || ' '}</span>`;
+  }).join('\n');
+}
+function syncDiffScroll() {
+  diffLeft.addEventListener('scroll', () => { diffLhl.scrollTop = diffLeft.scrollTop; diffLhl.scrollLeft = diffLeft.scrollLeft; });
+  diffRight.addEventListener('scroll', () => { diffRhl.scrollTop = diffRight.scrollTop; diffRhl.scrollLeft = diffRight.scrollLeft; });
+}
+function pkey(arr) { return arr.join('\u0001'); }
+function clearDiffHl() { diffLhl.innerHTML = ''; diffRhl.innerHTML = ''; }
+function renderDiffPlain() {
+  const setOne = (taEl, hlEl) => {
+    const lines = taEl.value.split('\n');
+    hlEl.innerHTML = lines.map((ln, i) => `<span class="ln" data-ln="${i+1}">${escapeHtml(ln) || ' '}</span>`).join('\n');
+  };
+  setOne(diffLeft, diffLhl);
+  setOne(diffRight, diffRhl);
+}
+function runDiff() {
+  let A, B, errMsg = '';
+  try { A = safeParse(diffLeft.value); }  catch (e) { errMsg = '左侧解析失败：' + e.message; }
+  if (!errMsg) { try { B = safeParse(diffRight.value); } catch (e) { errMsg = '右侧解析失败：' + e.message; } }
+  if (errMsg) {
+    diffSummary.innerHTML = `<span class="pill del">❌</span><span style="color:var(--danger)">${escapeHtml(errMsg)}</span>`;
+    clearDiffHl(); return;
+  }
+  const ma = stringifyWithMap(A), mb = stringifyWithMap(B);
+  const changes = []; diffPaths(A, B, [], changes);
+  let nAdd = 0, nDel = 0, nMod = 0;
+  const lMarks = new Map(), rMarks = new Map();
+  for (const c of changes) {
+    const key = pkey(c.path);
+    if (c.kind === 'add') { nAdd++; const ln = mb.pathToLine.get(key); if (ln) markRange(rMarks, ln, mb, 'add'); }
+    else if (c.kind === 'del') { nDel++; const ln = ma.pathToLine.get(key); if (ln) markRange(lMarks, ln, ma, 'del'); }
+    else { nMod++; const lln = ma.pathToLine.get(key), rln = mb.pathToLine.get(key); if (lln) lMarks.set(lln, 'mod'); if (rln) rMarks.set(rln, 'mod'); }
+  }
+  paintDiffEditor(diffLeft, diffLhl, ma, lMarks);
+  paintDiffEditor(diffRight, diffRhl, mb, rMarks);
+  diffLstat.textContent = `${diffLeft.value.length} 字`;
+  diffRstat.textContent = `${diffRight.value.length} 字`;
+  localStorage.setItem('lp_diff_left', diffLeft.value);
+  localStorage.setItem('lp_diff_right', diffRight.value);
+  if (nAdd + nDel + nMod === 0) diffSummary.innerHTML = `<span class="pill eq">✓ 完全相同</span>`;
+  else diffSummary.innerHTML = `<span class="pill add">+ 新增 ${nAdd}</span> <span class="pill del">− 删除 ${nDel}</span> <span class="pill mod">~ 修改 ${nMod}</span> <span class="muted">行级高亮已显示</span>`;
+}
+let diffTimer = null;
+function diffOnInput() {
+  diffLstat.textContent = `${diffLeft.value.length} 字`;
+  diffRstat.textContent = `${diffRight.value.length} 字`;
+  renderDiffPlain();
+  localStorage.setItem('lp_diff_left', diffLeft.value);
+  localStorage.setItem('lp_diff_right', diffRight.value);
+  clearTimeout(diffTimer); diffTimer = setTimeout(runDiff, 400);
+}
+diffLeft.addEventListener('input', diffOnInput);
+diffRight.addEventListener('input', diffOnInput);
+document.getElementById('btn-diff-run').onclick = runDiff;
+document.getElementById('btn-diff-format').onclick = () => {
+  try { diffLeft.value = JSON.stringify(safeParse(diffLeft.value), null, 2); } catch {}
+  try { diffRight.value = JSON.stringify(safeParse(diffRight.value), null, 2); } catch {}
+  runDiff();
+};
+document.getElementById('btn-diff-swap').onclick = () => { const t = diffLeft.value; diffLeft.value = diffRight.value; diffRight.value = t; runDiff(); };
+document.getElementById('btn-diff-clear').onclick = () => {
+  diffLeft.value = ''; diffRight.value = ''; clearDiffHl();
+  diffSummary.innerHTML = '<span class="muted">已清空</span>';
+  diffLstat.textContent = '0 字'; diffRstat.textContent = '0 字';
+  localStorage.setItem('lp_diff_left', ''); localStorage.setItem('lp_diff_right', '');
+};
+document.getElementById('btn-diff-sample').onclick = () => {
+  diffLeft.value = SAMPLE_DIFF_L; diffRight.value = SAMPLE_DIFF_R; runDiff();
+};
+bindDivider(document.getElementById('diff-divider'), null, (x) => {
+  const w = window.innerWidth;
+  const left = Math.max(200, Math.min(w - 200, x));
+  document.querySelector('#view-diff .grid').style.gridTemplateColumns = `${left}px 6px 1fr`;
+});
+let diffInited = false;
+function ensureDiffRender() {
+  if (!diffInited) {
+    diffLeft.value  = localStorage.getItem('lp_diff_left')  || SAMPLE_DIFF_L;
+    diffRight.value = localStorage.getItem('lp_diff_right') || SAMPLE_DIFF_R;
+    syncDiffScroll();
+    diffInited = true;
+  }
+  runDiff();
+}
+
+/* ============================================================
+   视图 4：PlantUML
+============================================================ */
+const pumlInput = document.getElementById('puml-input');
+const pumlOut = document.getElementById('puml-output');
+const pumlInStat = document.getElementById('puml-instat');
+const pumlStatus = document.getElementById('puml-status');
+let pumlTimer = null, pumlSvg = '', pumlUrl = '', pumlZoom = 1;
+
+function applyPumlZoom() {
+  const el = pumlOut.querySelector('svg, img');
+  if (el) el.style.transform = `scale(${pumlZoom})`;
+  document.getElementById('puml-zoom-val').textContent = Math.round(pumlZoom * 100) + '%';
+}
+function renderPuml() {
+  const code = pumlInput.value;
+  pumlInStat.textContent = `${code.length} 字`;
+  if (!code.trim()) { pumlOut.innerHTML = '<div class="loading">输入 PlantUML 代码以预览…</div>'; pumlStatus.textContent = '空'; return; }
+  clearTimeout(pumlTimer);
+  pumlStatus.textContent = '渲染中…'; pumlStatus.style.color = 'var(--accent)';
+  pumlTimer = setTimeout(async () => {
+    try {
+      const url = plantumlUrl(code, 'svg');
+      pumlUrl = url;
+      const r = await fetchWithTimeout(url, 8000);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const svg = await r.text();
+      pumlSvg = svg; pumlOut.innerHTML = svg; applyPumlZoom();
+      pumlStatus.textContent = '已渲染'; pumlStatus.style.color = 'var(--accent-2)';
+    } catch (e) {
+      const msg = e.name === 'AbortError' ? '请求超时（网络不可达？）' : e.message;
+      pumlOut.innerHTML = `<div class="err">PlantUML 渲染失败：${msg}\n备用：<a href="${pumlUrl}" target="_blank" style="color:#0366d6">在 plantuml.com 打开</a></div>`;
+      pumlStatus.textContent = '失败'; pumlStatus.style.color = 'var(--danger)';
+    }
+  }, 350);
+}
+pumlInput.addEventListener('input', () => { renderPuml(); localStorage.setItem('lp_puml_input', pumlInput.value); });
+document.getElementById('puml-zoom-in').onclick    = () => { pumlZoom = Math.min(3, pumlZoom + 0.1); applyPumlZoom(); };
+document.getElementById('puml-zoom-out').onclick   = () => { pumlZoom = Math.max(0.3, pumlZoom - 0.1); applyPumlZoom(); };
+document.getElementById('puml-zoom-reset').onclick = () => { pumlZoom = 1; applyPumlZoom(); };
+document.getElementById('btn-puml-sample').onclick = () => { pumlInput.value = SAMPLE_PUML; renderPuml(); localStorage.setItem('lp_puml_input', pumlInput.value); };
+document.getElementById('btn-puml-clear').onclick  = () => { pumlInput.value = ''; renderPuml(); localStorage.setItem('lp_puml_input', ''); };
+document.getElementById('btn-puml-url').onclick = async () => {
+  if (!pumlUrl) return alert('还没渲染');
+  await navigator.clipboard.writeText(pumlUrl);
+  pumlStatus.textContent = '链接已复制 ✓'; setTimeout(() => pumlStatus.textContent = '已渲染', 1500);
+};
+document.getElementById('btn-puml-svg').onclick = () => {
+  if (!pumlSvg) return alert('还没渲染');
+  downloadBlob(new Blob([pumlSvg], { type: 'image/svg+xml' }), 'diagram.svg');
+};
+document.getElementById('btn-puml-png').onclick = async () => {
+  const code = pumlInput.value;
+  if (!code.trim()) return alert('没有源码');
+  try {
+    const r = await fetchWithTimeout(plantumlUrl(code, 'png'), 10000);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    downloadBlob(await r.blob(), 'diagram.png');
+  } catch (e) { alert('PNG 导出失败：' + e.message); }
+};
+bindDivider(document.getElementById('puml-divider'), null, (x) => {
+  const w = window.innerWidth;
+  const left = Math.max(200, Math.min(w - 200, x));
+  document.querySelector('#view-puml .grid').style.gridTemplateColumns = `${left}px 6px 1fr`;
+});
+let pumlInited = false;
+function ensurePumlRender() {
+  if (!pumlInited) {
+    pumlInput.value = localStorage.getItem('lp_puml_input') || SAMPLE_PUML;
+    pumlInited = true;
+  }
+  renderPuml();
+}
+
+/* ============================================================
+   示例
+============================================================ */
+const SAMPLE_MD = `# 综合示例
+
+> 顶部 Tab 可切换到 JSON / JSON Diff / PlantUML 独立视图。
+
+## 目录
+
+- [PlantUML 示例](#plantuml-示例)
+- [JSON 示例](#json-示例)
+
+## PlantUML 示例
+
+\`\`\`plantuml
+@startuml
+title Mira 安全数据流
+actor User
+participant "Backend" as be
+database "OSS" as oss
+User -> be: 上传
+be -> oss: 存密文
+@enduml
+\`\`\`
+
+## JSON 示例
+
+\`\`\`json
+{ "ok": true, "list": [1,2,3] }
+\`\`\`
+
+## 表格
+
+| 视图 | 用途 |
+|------|------|
+| 综合 | Markdown 工作台 |
+| JSON | JSON 树展开 |
+| JSON Diff | 行级对比 |
+| PlantUML | 实时绘图 |
+`;
+
+const SAMPLE_JSON = `{
+  "project": "Mira",
+  "version": "4.1.0",
+  "modules": ["kms", "chain", "oss"],
+  "stats": { "loc": 150000, "active": true, "launchedAt": null },
+  "owners": [
+    { "name": "yunlian", "role": "backend" },
+    { "name": "ops",     "role": "sre" }
+  ]
+}`;
+
+const SAMPLE_DIFF_L = `{
+  "name": "mira",
+  "version": "4.0.0",
+  "modules": ["kms", "chain", "oss"],
+  "owners": [{ "name": "yunlian", "role": "backend" }],
+  "stats": { "loc": 140000, "active": true }
+}`;
+const SAMPLE_DIFF_R = `{
+  "name": "mira",
+  "version": "4.1.0",
+  "modules": ["kms", "chain", "oss", "audit"],
+  "owners": [{ "name": "yunlian", "role": "backend lead" }],
+  "stats": { "loc": 150000, "active": true, "launched": "2026-05-01" }
+}`;
+
+const SAMPLE_PUML = `@startuml
+title Mira 安全数据流
+
+actor User
+participant "Backend" as be
+participant "KMS" as kms
+database   "长安链" as chain
+database   "OSS" as oss
+
+User -> be: 上传数据
+be -> kms: 申请 KEK
+kms --> be: 数据加密密钥
+be -> oss: 存密文
+be -> chain: 上链哈希 + 元数据
+chain --> be: tx_id
+be --> User: OK
+@enduml`;
+
+/* ============================================================
+   启动
+============================================================ */
+ensureMdDoc();
+renderDocList();
+mdTitle.value = mdDocs[mdCurrent].title;
+mdEditor.value = mdDocs[mdCurrent].content;
+applyCollapse();
+doMdRender();
+
+const initialTab = location.hash.replace('#','') || localStorage.getItem(TAB_KEY) || 'md';
+activateTab(initialTab);
+</script>
+</body>
+</html>
