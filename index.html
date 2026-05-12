@@ -13,6 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 
 <!-- 防 FOUC 主题脚本 -->
 <script>
@@ -319,6 +320,17 @@
   #view-puml #puml-output svg, #view-puml #puml-output img {
     max-width: none; transition: transform .1s; transform-origin: top center;
   }
+  /* Mermaid 视图 */
+  #view-mermaid .grid { display: grid; grid-template-columns: 1fr 6px 1fr; height: 100%; }
+  #view-mermaid textarea#mer-input { flex: 1; }
+  #view-mermaid #mer-output {
+    flex: 1; overflow: auto; background: var(--preview-bg);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 20px;
+  }
+  #view-mermaid #mer-output svg, #view-mermaid #mer-output img {
+    max-width: none; transition: transform .1s; transform-origin: top center;
+  }
   .zoom-ctrl { display: flex; align-items: center; gap: 6px; font-size: 11px; }
   .zoom-ctrl button { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 2px 8px; border-radius: 4px; cursor: pointer; }
   .loading { color: #6e7781; padding: 20px; font-size: 13px; }
@@ -333,6 +345,7 @@
     <span class="nav-link" data-tab="json">JSON</span>
     <span class="nav-link" data-tab="diff">JSON Diff</span>
     <span class="nav-link" data-tab="puml">PlantUML</span>
+    <span class="nav-link" data-tab="mermaid">Mermaid</span>
   </nav>
   <a class="nav-link back-blog" href="https://wendellzone.github.io/" title="回到博客">← 博客</a>
   <button class="theme-toggle" id="theme-toggle" title="切换主题" aria-label="切换主题">
@@ -368,6 +381,11 @@
     <button class="btn" id="btn-puml-url">复制分享链接</button>
     <button class="btn warn" id="btn-puml-png">导出 PNG</button>
     <button class="btn primary" id="btn-puml-svg">导出 SVG</button>
+  </div>
+  <div class="actions" id="actions-mermaid" data-actions="mermaid" style="display:none">
+    <button class="btn" id="btn-mer-sample">示例</button>
+    <button class="btn" id="btn-mer-clear">清空</button>
+    <button class="btn primary" id="btn-mer-svg">导出 SVG</button>
   </div>
 </header>
 
@@ -473,13 +491,39 @@
   </div>
 </div>
 
+<!-- ============================================================
+     视图 5：Mermaid
+     ============================================================ -->
+<div class="view" id="view-mermaid">
+  <div class="grid">
+    <section class="pane">
+      <div class="pane-head"><span>Mermaid 源码</span><span id="mer-instat">0 字</span></div>
+      <textarea id="mer-input" spellcheck="false" placeholder="flowchart LR&#10;  A --> B"></textarea>
+    </section>
+    <div class="divider" id="mer-divider"></div>
+    <section class="pane">
+      <div class="pane-head">
+        <span>渲染结果</span>
+        <div class="zoom-ctrl">
+          <button id="mer-zoom-out">−</button>
+          <span id="mer-zoom-val">100%</span>
+          <button id="mer-zoom-in">＋</button>
+          <button id="mer-zoom-reset">重置</button>
+          <span id="mer-status" style="margin-left:8px">就绪</span>
+        </div>
+      </div>
+      <div id="mer-output"><div class="loading">输入 Mermaid 代码以预览…</div></div>
+    </section>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    Tab 切换
 ============================================================ */
 const TAB_KEY = 'lp_tab';
 const tabs = document.querySelectorAll('.nav-link');
-const views = { md: 'view-md', json: 'view-json', diff: 'view-diff', puml: 'view-puml' };
+const views = { md: 'view-md', json: 'view-json', diff: 'view-diff', puml: 'view-puml', mermaid: 'view-mermaid' };
 function activateTab(name) {
   if (!views[name]) name = 'md';
   Object.entries(views).forEach(([k, id]) => {
@@ -495,6 +539,7 @@ function activateTab(name) {
   if (name === 'json')   ensureJsonRender();
   if (name === 'diff')   ensureDiffRender();
   if (name === 'puml')   ensurePumlRender();
+  if (name === 'mermaid') ensureMermaidRender();
 }
 tabs.forEach(t => t.addEventListener('click', () => activateTab(t.dataset.tab)));
 window.addEventListener('hashchange', () => activateTab(location.hash.replace('#', '')));
@@ -510,6 +555,14 @@ function applyTheme(theme) {
     light.disabled = theme === 'dark';
     dark.disabled  = theme !== 'dark';
   }
+  // mermaid 主题跟随重渲（用 try 包住，避免顶部初始化时 TDZ）
+  try {
+    if (_merThemeInit) {
+      _merThemeInit = false;
+      const inp = document.getElementById('mer-input');
+      if (inp && inp.value && inp.value.trim()) renderMermaid();
+    }
+  } catch (e) { /* 变量尚未初始化时静默 */ }
 }
 applyTheme(document.documentElement.getAttribute('data-theme') || 'light');
 document.getElementById('theme-toggle').addEventListener('click', () => {
@@ -1271,6 +1324,90 @@ function ensurePumlRender() {
 }
 
 /* ============================================================
+   视图 5：Mermaid（本地渲染，零外部网络）
+============================================================ */
+const merInput = document.getElementById('mer-input');
+const merOut = document.getElementById('mer-output');
+const merInStat = document.getElementById('mer-instat');
+const merStatus = document.getElementById('mer-status');
+var merTimer = null, merSvg = '', merZoom = 1, merInited = false, _merThemeInit = false;
+
+function applyMerZoom() {
+  const el = merOut.querySelector('svg, img');
+  if (el) el.style.transform = `scale(${merZoom})`;
+  document.getElementById('mer-zoom-val').textContent = Math.round(merZoom * 100) + '%';
+}
+
+function ensureMermaidInit() {
+  if (_merThemeInit || typeof mermaid === 'undefined') return;
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'loose',
+    theme: dark ? 'dark' : 'default',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif',
+  });
+  _merThemeInit = true;
+}
+
+function renderMermaid() {
+  const code = merInput.value;
+  merInStat.textContent = `${code.length} 字`;
+  if (!code.trim()) {
+    merOut.innerHTML = '<div class="loading">输入 Mermaid 代码以预览…</div>';
+    merStatus.textContent = '空'; return;
+  }
+  clearTimeout(merTimer);
+  merStatus.textContent = '渲染中…'; merStatus.style.color = 'var(--accent)';
+  merTimer = setTimeout(async () => {
+    ensureMermaidInit();
+    try {
+      const id = 'm' + Date.now().toString(36);
+      const { svg } = await mermaid.render(id, code);
+      merSvg = svg; merOut.innerHTML = svg; applyMerZoom();
+      merStatus.textContent = '已渲染'; merStatus.style.color = 'var(--accent-2)';
+    } catch (e) {
+      const msg = (e && e.message) ? e.message : String(e);
+      merOut.innerHTML = `<div class="err">Mermaid 渲染失败：${msg}</div>`;
+      merStatus.textContent = '失败'; merStatus.style.color = 'var(--danger)';
+    }
+  }, 300);
+}
+
+merInput.addEventListener('input', () => {
+  renderMermaid();
+  localStorage.setItem('lp_mer_input', merInput.value);
+});
+document.getElementById('mer-zoom-in').onclick    = () => { merZoom = Math.min(3, merZoom + 0.1); applyMerZoom(); };
+document.getElementById('mer-zoom-out').onclick   = () => { merZoom = Math.max(0.3, merZoom - 0.1); applyMerZoom(); };
+document.getElementById('mer-zoom-reset').onclick = () => { merZoom = 1; applyMerZoom(); };
+document.getElementById('btn-mer-sample').onclick = () => {
+  merInput.value = SAMPLE_MERMAID; renderMermaid();
+  localStorage.setItem('lp_mer_input', merInput.value);
+};
+document.getElementById('btn-mer-clear').onclick  = () => {
+  merInput.value = ''; renderMermaid();
+  localStorage.setItem('lp_mer_input', '');
+};
+document.getElementById('btn-mer-svg').onclick = () => {
+  if (!merSvg) return alert('还没渲染');
+  downloadBlob(new Blob([merSvg], { type: 'image/svg+xml' }), 'mermaid.svg');
+};
+bindDivider(document.getElementById('mer-divider'), null, (x) => {
+  const w = window.innerWidth;
+  const left = Math.max(200, Math.min(w - 200, x));
+  document.querySelector('#view-mermaid .grid').style.gridTemplateColumns = `${left}px 6px 1fr`;
+});
+
+function ensureMermaidRender() {
+  if (!merInited) {
+    merInput.value = localStorage.getItem('lp_mer_input') || SAMPLE_MERMAID;
+    merInited = true;
+  }
+  renderMermaid();
+}
+
+/* ============================================================
    示例
 ============================================================ */
 const SAMPLE_MD = `# 综合示例
@@ -1354,6 +1491,19 @@ be -> chain: 上链哈希 + 元数据
 chain --> be: tx_id
 be --> User: OK
 @enduml`;
+
+const SAMPLE_MERMAID = `flowchart LR
+  U([用户]) --> A[发起请求]
+  A --> B{鉴权}
+  B -->|通过| C[业务处理]
+  B -->|失败| E[返回 401]
+  C --> D[(数据库)]
+  D --> R[返回结果]
+
+  classDef ok fill:#d1f4d8,stroke:#1a7f37,color:#1a7f37
+  classDef err fill:#ffd6d3,stroke:#cf222e,color:#cf222e
+  class C,R ok
+  class E err`;
 
 /* ============================================================
    启动
