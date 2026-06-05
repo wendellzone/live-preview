@@ -264,6 +264,12 @@
     font-family: "SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
     font-size: 13px;
   }
+  #view-json #json-edit-ta {
+    flex: 1; background: #fdfdfd; color: #24292f;
+    border: none; outline: none; resize: none;
+    padding: 14px; font-size: 13px; line-height: 1.55; tab-size: 2;
+    font-family: "SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  }
 
   /* ============================================================
      视图 3：JSON Diff
@@ -433,8 +439,16 @@
     </section>
     <div class="divider" id="json-divider"></div>
     <section class="pane">
-      <div class="pane-head"><span>可视化</span><span id="json-outstat">就绪</span></div>
+      <div class="pane-head">
+        <span id="json-outmode">可视化</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="jbtn" id="btn-json-view" style="display:none">📋 树视图</button>
+          <button class="jbtn" id="btn-json-edit">✏️ 编辑</button>
+          <span id="json-outstat">就绪</span>
+        </div>
+      </div>
       <div id="json-output"></div>
+      <textarea id="json-edit-ta" spellcheck="false" style="display:none"></textarea>
     </section>
   </div>
 </div>
@@ -1015,7 +1029,50 @@ const jsonInput = document.getElementById('json-input');
 const jsonOut   = document.getElementById('json-output');
 const jsonInStat = document.getElementById('json-instat');
 const jsonOutStat = document.getElementById('json-outstat');
+const jsonEditTa = document.getElementById('json-edit-ta');
+const btnJsonView = document.getElementById('btn-json-view');
+const btnJsonEdit = document.getElementById('btn-json-edit');
+const jsonOutMode = document.getElementById('json-outmode');
 let jsonData = null;
+let jsonEditMode = false;
+
+function setJsonMode(edit) {
+  jsonEditMode = edit;
+  if (edit) {
+    jsonOut.style.display = 'none';
+    jsonEditTa.style.display = '';
+    btnJsonView.style.display = '';
+    btnJsonEdit.style.display = 'none';
+    jsonOutMode.textContent = '编辑';
+    jsonEditTa.value = jsonData !== null ? JSON.stringify(jsonData, null, 2) : jsonInput.value;
+    jsonEditTa.focus();
+  } else {
+    jsonOut.style.display = '';
+    jsonEditTa.style.display = 'none';
+    btnJsonView.style.display = 'none';
+    btnJsonEdit.style.display = '';
+    jsonOutMode.textContent = '可视化';
+  }
+}
+btnJsonView.onclick = () => setJsonMode(false);
+btnJsonEdit.onclick = () => setJsonMode(true);
+
+jsonEditTa.addEventListener('input', () => {
+  const src = jsonEditTa.value;
+  // 尝试解析编辑区的 JSON，成功后同步到左侧输入框和树视图
+  try {
+    const d = JSON.parse(src);
+    jsonData = d;
+    jsonInput.value = JSON.stringify(d, null, 2);
+    jsonOut.innerHTML = renderJsonTree(d, undefined, true);
+    bindJsonToggles(jsonOut);
+    jsonOutStat.textContent = '已同步';
+    jsonInStat.textContent = `${jsonInput.value.length} 字`;
+    localStorage.setItem('lp_json_input', jsonInput.value);
+  } catch (e) {
+    // 解析失败时不报错，等用户继续编辑
+  }
+});
 
 function renderJsonView() {
   const src = jsonInput.value;
@@ -1069,6 +1126,7 @@ function ensureJsonRender() {
     jsonInput.value = localStorage.getItem('lp_json_input') || SAMPLE_JSON;
     jsonInited = true;
   }
+  setJsonMode(false);
   renderJsonView();
 }
 
