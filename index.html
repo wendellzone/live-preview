@@ -5,14 +5,7 @@
 <title>实时预览 · Markdown / JSON / PlantUML</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css" id="hljs-light">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css" id="hljs-dark" disabled>
-<script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 
 <!-- 防 FOUC 主题脚本 -->
@@ -131,90 +124,6 @@
     cursor: pointer; font-size: 14px; padding: 0 4px; user-select: none;
   }
   .collapse-btn:hover { color: var(--text); }
-
-  /* ============================================================
-     视图 1：综合（Markdown 编辑工作台）
-     ============================================================ */
-  #view-md { }
-  #view-md .grid {
-    display: grid;
-    grid-template-columns: 220px 6px 1fr 6px 1fr;
-    height: 100%;
-    transition: grid-template-columns .2s;
-  }
-  #view-md .grid.aside-collapsed { grid-template-columns: 36px 6px 1fr 6px 1fr !important; }
-  #view-md .grid.editor-collapsed { grid-template-columns: var(--aside-w,220px) 6px 36px 6px 1fr !important; }
-  #view-md .grid.aside-collapsed.editor-collapsed { grid-template-columns: 36px 6px 36px 6px 1fr !important; }
-  #view-md aside {
-    background: var(--panel-3); border-right: 1px solid var(--border);
-    display: flex; flex-direction: column; overflow: hidden;
-  }
-  #view-md .aside-head {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 8px 12px; background: var(--panel-2);
-    border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted);
-  }
-  #view-md .aside-head button.add {
-    background: var(--accent); color: #1e1f29; border: none;
-    padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 600;
-  }
-  #view-md .doc-list { flex: 1; overflow: auto; padding: 6px 0; }
-  #view-md .doc-item {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 8px 12px; font-size: 13px; cursor: pointer;
-    border-left: 2px solid transparent; color: var(--muted);
-  }
-  #view-md .doc-item:hover { background: #2a2c37; color: var(--text); }
-  #view-md .doc-item.active { background: #323547; color: var(--text); border-left-color: var(--accent); }
-  #view-md .doc-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #view-md .doc-del { opacity: 0; color: var(--danger); font-size: 11px; padding: 0 6px; background: transparent; border: none; cursor: pointer; }
-  #view-md .doc-item:hover .doc-del { opacity: 1; }
-
-  #view-md .grid.aside-collapsed aside .doc-list,
-  #view-md .grid.aside-collapsed aside .aside-head > span:first-child,
-  #view-md .grid.aside-collapsed aside .aside-head > .add { display: none; }
-  #view-md .grid.aside-collapsed aside .aside-head { justify-content: center; padding: 8px 4px; }
-  #view-md .grid.editor-collapsed .editor-pane > *:not(.pane-head) { display: none; }
-  #view-md .grid.editor-collapsed .editor-pane .pane-head .title-input,
-  #view-md .grid.editor-collapsed .editor-pane .pane-head .status { display: none; }
-  #view-md .grid.editor-collapsed .editor-pane .pane-head { justify-content: center; padding: 8px 4px; }
-
-  #md-editor { flex: 1; }
-  #md-preview {
-    flex: 1; overflow: auto; padding: 24px 32px;
-    background: var(--preview-bg); color: var(--preview-fg);
-  }
-  #md-preview h1, #md-preview h2, #md-preview h3, #md-preview h4 { margin: 20px 0 10px; line-height: 1.3; scroll-margin-top: 8px; }
-  #md-preview h1 { font-size: 26px; border-bottom: 1px solid #eaecef; padding-bottom: 6px; }
-  #md-preview h2 { font-size: 20px; border-bottom: 1px solid #eaecef; padding-bottom: 4px; }
-  #md-preview h3 { font-size: 16px; }
-  #md-preview p, #md-preview ul, #md-preview ol { margin: 8px 0; line-height: 1.75; }
-  #md-preview code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
-  #md-preview pre { background: #f6f8fa; padding: 12px; border-radius: 6px; overflow: auto; }
-  #md-preview pre code { background: transparent; padding: 0; }
-  #md-preview blockquote { border-left: 4px solid #dfe2e5; color: #6a737d; padding: 4px 14px; margin: 10px 0; }
-  #md-preview table { border-collapse: collapse; margin: 10px 0; }
-  #md-preview th, #md-preview td { border: 1px solid #dfe2e5; padding: 6px 12px; }
-  #md-preview th { background: #f6f8fa; }
-  #md-preview a { color: #0366d6; }
-  #md-preview img { max-width: 100%; }
-  #md-preview hr { border: none; border-top: 1px solid #eaecef; margin: 16px 0; }
-
-  /* PlantUML 嵌入块 */
-  .plantuml-block {
-    margin: 14px 0; padding: 12px;
-    background: #fafbfc; border: 1px solid #eaecef;
-    border-radius: 6px; text-align: center;
-  }
-  .plantuml-block svg, .plantuml-block img { max-width: 100%; height: auto; }
-  .plantuml-block .ph { color: #999; font-size: 12px; padding: 20px; }
-
-  .err {
-    color: var(--danger); padding: 10px 14px;
-    font-family: monospace; font-size: 12px;
-    white-space: pre-wrap; background: #fff5f5;
-    border: 1px solid #ffd6d6; border-radius: 6px; margin: 10px 0;
-  }
 
   /* ============================================================
      共用 JSON 树
@@ -347,7 +256,6 @@
 <header>
   <h1>📝 实时预览</h1>
   <nav class="nav">
-    <span class="nav-link" data-tab="md">综合</span>
     <span class="nav-link" data-tab="json">JSON</span>
     <span class="nav-link" data-tab="diff">JSON Diff</span>
     <span class="nav-link" data-tab="puml">PlantUML</span>
@@ -359,12 +267,6 @@
   </button>
   <div class="spacer"></div>
   <!-- 各视图自己的工具栏（同位置切换显示） -->
-  <div class="actions" id="actions-md" data-actions="md">
-    <button class="btn" id="btn-md-sample">加载示例</button>
-    <button class="btn" id="btn-md-md">导出 MD</button>
-    <button class="btn warn" id="btn-md-pdf">导出 PDF</button>
-    <button class="btn primary" id="btn-md-html">导出 HTML</button>
-  </div>
   <div class="actions" id="actions-json" data-actions="json" style="display:none">
     <button class="btn" id="btn-json-format">格式化</button>
     <button class="btn" id="btn-json-min">压缩</button>
@@ -372,7 +274,6 @@
     <button class="btn" id="btn-json-collapse">全部折叠</button>
     <button class="btn" id="btn-json-sample">示例</button>
     <button class="btn" id="btn-json-clear">清空</button>
-    <button class="btn primary" id="btn-json-copy">复制结果</button>
   </div>
   <div class="actions" id="actions-diff" data-actions="diff" style="display:none">
     <button class="btn" id="btn-diff-format">格式化两边</button>
@@ -396,45 +297,18 @@
 </header>
 
 <!-- ============================================================
-     视图 1：综合（Markdown）
-     ============================================================ -->
-<div class="view" id="view-md">
-  <div class="grid" id="md-grid">
-    <aside>
-      <div class="aside-head">
-        <span>文章列表</span>
-        <button class="add" id="btn-md-new">+ 新建</button>
-        <button class="collapse-btn" id="btn-md-collapse-aside">◀</button>
-      </div>
-      <div class="doc-list" id="md-doc-list"></div>
-    </aside>
-    <div class="divider" id="md-divider1"></div>
-    <section class="pane editor-pane">
-      <div class="pane-head">
-        <button class="collapse-btn" id="btn-md-collapse-editor">◀</button>
-        <input class="title-input" id="md-title" placeholder="文章标题…" />
-        <span class="status" id="md-charcnt">0 字</span>
-      </div>
-      <textarea id="md-editor" spellcheck="false"></textarea>
-    </section>
-    <div class="divider" id="md-divider2"></div>
-    <section class="pane">
-      <div class="pane-head">
-        <span>预览</span>
-        <span class="status" id="md-status">就绪</span>
-      </div>
-      <div id="md-preview"></div>
-    </section>
-  </div>
-</div>
-
-<!-- ============================================================
-     视图 2：JSON
+     视图 1：JSON
      ============================================================ -->
 <div class="view" id="view-json">
   <div class="grid">
     <section class="pane">
-      <div class="pane-head"><span>输入</span><span id="json-instat">0 字</span></div>
+      <div class="pane-head">
+        <span>输入</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="jbtn" id="btn-json-copy-left">📋 复制</button>
+          <span id="json-instat">0 字</span>
+        </div>
+      </div>
       <textarea id="json-input" spellcheck="false" placeholder='粘贴 JSON…'></textarea>
     </section>
     <div class="divider" id="json-divider"></div>
@@ -442,6 +316,7 @@
       <div class="pane-head">
         <span id="json-outmode">可视化</span>
         <div style="display:flex;align-items:center;gap:4px">
+          <button class="jbtn" id="btn-json-copy-right">📋 复制</button>
           <button class="jbtn" id="btn-json-view" style="display:none">📋 树视图</button>
           <button class="jbtn" id="btn-json-edit">✏️ 编辑</button>
           <span id="json-outstat">就绪</span>
@@ -454,7 +329,7 @@
 </div>
 
 <!-- ============================================================
-     视图 3：JSON Diff
+     视图 2：JSON Diff
      ============================================================ -->
 <div class="view" id="view-diff">
   <div class="summary-bar" id="diff-summary">
@@ -480,7 +355,7 @@
 </div>
 
 <!-- ============================================================
-     视图 4：PlantUML
+     视图 3：PlantUML
      ============================================================ -->
 <div class="view" id="view-puml">
   <div class="grid">
@@ -506,7 +381,7 @@
 </div>
 
 <!-- ============================================================
-     视图 5：Mermaid
+     视图 4：Mermaid
      ============================================================ -->
 <div class="view" id="view-mermaid">
   <div class="grid">
@@ -537,9 +412,9 @@
 ============================================================ */
 const TAB_KEY = 'lp_tab';
 const tabs = document.querySelectorAll('.nav-link');
-const views = { md: 'view-md', json: 'view-json', diff: 'view-diff', puml: 'view-puml', mermaid: 'view-mermaid' };
+const views = { json: 'view-json', diff: 'view-diff', puml: 'view-puml', mermaid: 'view-mermaid' };
 function activateTab(name) {
-  if (!views[name]) name = 'md';
+  if (!views[name]) name = 'json';
   Object.entries(views).forEach(([k, id]) => {
     document.getElementById(id).classList.toggle('active', k === name);
   });
@@ -563,12 +438,6 @@ window.addEventListener('hashchange', () => activateTab(location.hash.replace('#
 ============================================================ */
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
-  const light = document.getElementById('hljs-light');
-  const dark  = document.getElementById('hljs-dark');
-  if (light && dark) {
-    light.disabled = theme === 'dark';
-    dark.disabled  = theme !== 'dark';
-  }
   // mermaid 主题跟随重渲（用 try 包住，避免顶部初始化时 TDZ）
   try {
     if (_merThemeInit) {
@@ -722,308 +591,7 @@ function bindJsonToggles(root) {
 }
 
 /* ============================================================
-   视图 1：综合（Markdown）
-============================================================ */
-const mdGrid    = document.getElementById('md-grid');
-const mdEditor  = document.getElementById('md-editor');
-const mdPreview = document.getElementById('md-preview');
-const mdTitle   = document.getElementById('md-title');
-const mdDocList = document.getElementById('md-doc-list');
-const mdCharCnt = document.getElementById('md-charcnt');
-const mdStatus  = document.getElementById('md-status');
-
-const slugCount = {};
-function slugify(text) {
-  const s = String(text).toLowerCase()
-    .replace(/[\s\u00A0]+/g, '-')
-    .replace(/[^\w\u4e00-\u9fa5-]/g, '').slice(0, 80) || 'h';
-  slugCount[s] = (slugCount[s] || 0) + 1;
-  return slugCount[s] === 1 ? s : `${s}-${slugCount[s]}`;
-}
-function buildMdRenderer() {
-  const r = new marked.Renderer();
-  r.code = function(code, lang) {
-    if (typeof code === 'object' && code !== null) { lang = code.lang; code = code.text; }
-    const l = (lang || '').toLowerCase();
-    if (l === 'plantuml') {
-      const b64 = btoa(unescape(encodeURIComponent(code)));
-      return `<div class="plantuml-block" data-code="${b64}"><div class="ph">PlantUML 渲染中…</div></div>`;
-    }
-    if (l === 'json' || l === 'json5') {
-      const b64 = btoa(unescape(encodeURIComponent(code)));
-      return `<div class="json-block" data-code="${b64}"></div>`;
-    }
-    let html;
-    try {
-      html = lang && hljs.getLanguage(lang) ? hljs.highlight(code, { language: lang }).value : hljs.highlightAuto(code).value;
-    } catch { html = code; }
-    return `<pre><code class="hljs language-${lang||''}">${html}</code></pre>`;
-  };
-  r.heading = function(text, level) {
-    let raw = text, html = text;
-    if (typeof text === 'object' && text !== null) {
-      raw = text.text || ''; level = text.depth;
-      try { html = this.parser ? this.parser.parseInline(text.tokens || []) : raw; } catch { html = raw; }
-    }
-    const id = slugify(String(raw).replace(/<[^>]+>/g, ''));
-    return `<h${level} id="${id}">${html}</h${level}>`;
-  };
-  return r;
-}
-function renderMarkdown(md) {
-  for (const k in slugCount) delete slugCount[k];
-  marked.setOptions({ gfm: true, breaks: false, renderer: buildMdRenderer() });
-  return DOMPurify.sanitize(marked.parse(md || ''), { ADD_ATTR: ['data-code', 'id'] });
-}
-
-const pumlCache = new Map();
-async function renderOnePuml(el) {
-  const code = decodeURIComponent(escape(atob(el.dataset.code)));
-  const url = plantumlUrl(code);
-  if (pumlCache.has(code)) { el.innerHTML = pumlCache.get(code); return 'ok'; }
-  try {
-    const r = await fetchWithTimeout(url, 6000);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const svg = await r.text();
-    pumlCache.set(code, svg);
-    el.innerHTML = svg;
-    return 'ok';
-  } catch (e) {
-    const msg = e.name === 'AbortError' ? '请求超时（网络不可达？）' : e.message;
-    el.innerHTML = `<div class="err">PlantUML 渲染失败：${msg}\n备用：<a href="${url}" target="_blank">在 plantuml.com 打开</a></div>`;
-    return 'err';
-  }
-}
-async function hydratePlantUML(root) {
-  const blocks = [...root.querySelectorAll('.plantuml-block[data-code]')];
-  if (!blocks.length) return { total: 0, ok: 0, err: 0 };
-  const results = await Promise.allSettled(blocks.map(renderOnePuml));
-  const ok = results.filter(r => r.status === 'fulfilled' && r.value === 'ok').length;
-  return { total: results.length, ok, err: results.length - ok };
-}
-function hydrateJsonBlocks(root) {
-  root.querySelectorAll('.json-block[data-code]').forEach(el => {
-    const src = decodeURIComponent(escape(atob(el.dataset.code))).trim();
-    if (!src) { el.innerHTML = '<div class="json-empty">（空）</div>'; return; }
-    let data, warn = '';
-    try { data = JSON.parse(src); }
-    catch (e) {
-      try { data = looseJsonParse(src); warn = `⚠️ 已自动修复非严格 JSON：<em>${escapeHtml(e.message)}</em>`; }
-      catch (e2) {
-        const loc = errorLocation(src, e);
-        const locHtml = loc ? `<pre class="json-err-ctx">${escapeHtml(loc.ctx)}</pre><div class="muted">第 ${loc.line} 行 ${loc.col} 列</div>` : '';
-        el.innerHTML = `<div class="json-err"><div class="json-err-head">❌ JSON 解析失败</div><div class="json-err-msg">${escapeHtml(e.message)}</div>${locHtml}</div>`;
-        return;
-      }
-    }
-    el.innerHTML = `
-      <div class="json-toolbar">
-        <span class="badge">JSON</span>
-        <button class="jbtn" data-act="expand">展开</button>
-        <button class="jbtn" data-act="collapse">折叠</button>
-        <button class="jbtn" data-act="copy">复制</button>
-        <span class="json-status"></span>
-      </div>
-      ${warn ? `<div class="json-warn">${warn}</div>` : ''}
-      <div class="json-tree-wrap">${renderJsonTree(data, undefined, true)}</div>`;
-    bindJsonToggles(el);
-    const setAll = (open) => el.querySelectorAll('.jnode').forEach(n => n.classList.toggle('jopen', open));
-    el.querySelector('[data-act="expand"]').onclick   = () => setAll(true);
-    el.querySelector('[data-act="collapse"]').onclick = () => setAll(false);
-    el.querySelector('[data-act="copy"]').onclick = async () => {
-      try { await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-            const st = el.querySelector('.json-status'); st.textContent = '已复制 ✓'; setTimeout(() => st.textContent = '', 1200);
-          } catch (e) { alert('复制失败：' + e.message); }
-    };
-  });
-}
-
-/* 文章系统 */
-const LS_DOCS = 'lp2_docs', LS_CUR = 'lp2_current';
-let mdDocs = JSON.parse(localStorage.getItem(LS_DOCS) || '{}');
-let mdCurrent = localStorage.getItem(LS_CUR);
-function newId() { return 'd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-function saveDocs() { localStorage.setItem(LS_DOCS, JSON.stringify(mdDocs)); }
-function ensureMdDoc() {
-  if (!Object.keys(mdDocs).length) {
-    const id = newId();
-    mdDocs[id] = { id, title: '欢迎', content: SAMPLE_MD, updatedAt: Date.now() };
-    mdCurrent = id; saveDocs(); localStorage.setItem(LS_CUR, id);
-  } else if (!mdCurrent || !mdDocs[mdCurrent]) {
-    mdCurrent = Object.keys(mdDocs)[0];
-    localStorage.setItem(LS_CUR, mdCurrent);
-  }
-}
-function renderDocList() {
-  const items = Object.values(mdDocs).sort((a,b) => b.updatedAt - a.updatedAt);
-  mdDocList.innerHTML = '';
-  items.forEach(d => {
-    const el = document.createElement('div');
-    el.className = 'doc-item' + (d.id === mdCurrent ? ' active' : '');
-    el.innerHTML = `<span class="doc-title" title="${escapeHtml(d.title)}">${escapeHtml(d.title || '(无标题)')}</span>
-      <button class="doc-del" data-id="${d.id}">✕</button>`;
-    el.onclick = (e) => {
-      if (e.target.classList.contains('doc-del')) return;
-      switchDoc(d.id);
-    };
-    el.querySelector('.doc-del').onclick = (e) => { e.stopPropagation(); deleteDoc(d.id); };
-    mdDocList.appendChild(el);
-  });
-}
-function switchDoc(id) {
-  mdCurrent = id; localStorage.setItem(LS_CUR, id);
-  const d = mdDocs[id];
-  mdTitle.value = d.title; mdEditor.value = d.content;
-  renderDocList(); doMdRender();
-}
-function newDoc() {
-  const id = newId();
-  mdDocs[id] = { id, title: '未命名', content: '# 未命名\n\n', updatedAt: Date.now() };
-  saveDocs(); switchDoc(id); mdTitle.focus(); mdTitle.select();
-}
-function deleteDoc(id) {
-  if (!confirm(`删除「${mdDocs[id].title}」？`)) return;
-  delete mdDocs[id]; saveDocs();
-  if (id === mdCurrent) {
-    const rest = Object.keys(mdDocs);
-    if (!rest.length) ensureMdDoc(); else switchDoc(rest[0]);
-  } else renderDocList();
-}
-function persistMdCurrent() {
-  if (!mdCurrent || !mdDocs[mdCurrent]) return;
-  mdDocs[mdCurrent].title = mdTitle.value || '(无标题)';
-  mdDocs[mdCurrent].content = mdEditor.value;
-  mdDocs[mdCurrent].updatedAt = Date.now();
-  saveDocs();
-}
-
-let mdTimer = null;
-function doMdRender() {
-  mdCharCnt.textContent = `${mdEditor.value.length} 字`;
-  mdStatus.textContent = '渲染中…'; mdStatus.style.color = 'var(--accent)';
-  clearTimeout(mdTimer);
-  mdTimer = setTimeout(() => {
-    mdPreview.innerHTML = renderMarkdown(mdEditor.value);
-    bindMdAnchors();
-    hydrateJsonBlocks(mdPreview);
-    const blockCount = mdPreview.querySelectorAll('.plantuml-block[data-code]').length;
-    mdStatus.textContent = '已渲染'; mdStatus.style.color = 'var(--accent-2)';
-    if (blockCount) {
-      mdStatus.textContent = `已渲染，图示 0/${blockCount}`; mdStatus.style.color = 'var(--accent)';
-      hydratePlantUML(mdPreview).then(({ total, ok, err }) => {
-        if (!err) { mdStatus.textContent = `已渲染（含 ${total} 图）`; mdStatus.style.color = 'var(--accent-2)'; }
-        else      { mdStatus.textContent = `图示 ${ok}/${total} 成功`; mdStatus.style.color = 'var(--warn)'; }
-      });
-    }
-  }, 250);
-}
-function bindMdAnchors() {
-  mdPreview.querySelectorAll('a[href^="#"]').forEach(a => {
-    a.onclick = (e) => {
-      const id = decodeURIComponent(a.getAttribute('href').slice(1));
-      const t = mdPreview.querySelector(`[id="${CSS.escape(id)}"]`);
-      if (t) { e.preventDefault(); mdPreview.scrollTo({ top: t.offsetTop - mdPreview.offsetTop - 10, behavior: 'smooth' }); }
-    };
-  });
-}
-
-mdEditor.addEventListener('input', () => { persistMdCurrent(); doMdRender(); });
-mdTitle.addEventListener('input', () => { persistMdCurrent(); renderDocList(); });
-mdEditor.addEventListener('keydown', (e) => {
-  if (e.key === 'Tab') {
-    e.preventDefault();
-    const s = mdEditor.selectionStart, en = mdEditor.selectionEnd;
-    mdEditor.value = mdEditor.value.slice(0, s) + '  ' + mdEditor.value.slice(en);
-    mdEditor.selectionStart = mdEditor.selectionEnd = s + 2;
-    persistMdCurrent(); doMdRender();
-  }
-});
-document.getElementById('btn-md-new').onclick = newDoc;
-document.getElementById('btn-md-sample').onclick = () => {
-  mdEditor.value = SAMPLE_MD; mdTitle.value = '示例文章';
-  persistMdCurrent(); renderDocList(); doMdRender();
-};
-document.getElementById('btn-md-md').onclick = () => {
-  const title = mdDocs[mdCurrent].title || 'document';
-  downloadBlob(new Blob([mdEditor.value], { type: 'text/markdown' }), title + '.md');
-};
-document.getElementById('btn-md-html').onclick = () => {
-  const title = mdDocs[mdCurrent].title || 'document';
-  const wrap = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
-<style>body{font-family:-apple-system,"PingFang SC",sans-serif;max-width:860px;margin:40px auto;padding:0 24px;color:#24292f;line-height:1.7}
-pre{background:#f6f8fa;padding:12px;border-radius:6px;overflow:auto}code{background:#f4f4f4;padding:2px 6px;border-radius:4px}
-pre code{background:transparent;padding:0}table{border-collapse:collapse}th,td{border:1px solid #dfe2e5;padding:6px 12px}th{background:#f6f8fa}
-blockquote{border-left:4px solid #dfe2e5;color:#6a737d;padding:4px 14px;margin:10px 0}
-.plantuml-block{margin:14px 0;padding:12px;background:#fafbfc;border:1px solid #eaecef;border-radius:6px;text-align:center}
-.plantuml-block svg,.plantuml-block img{max-width:100%}
-</style></head><body>${mdPreview.innerHTML}</body></html>`;
-  downloadBlob(new Blob([wrap], { type: 'text/html' }), title + '.html');
-};
-document.getElementById('btn-md-pdf').onclick = async () => {
-  const title = mdDocs[mdCurrent].title || 'document';
-  const oldStatus = mdStatus.textContent;
-  mdStatus.textContent = '生成 PDF…'; mdStatus.style.color = 'var(--warn)';
-  const clone = mdPreview.cloneNode(true);
-  clone.style.cssText = 'position:absolute;left:-99999px;top:0;width:820px;background:#fff;padding:24px 32px;color:#24292f;font-family:-apple-system,"PingFang SC",sans-serif;line-height:1.7;';
-  document.body.appendChild(clone);
-  clone.querySelectorAll('svg').forEach(svg => {
-    if (!svg.getAttribute('width') && svg.viewBox?.baseVal) {
-      svg.setAttribute('width', svg.viewBox.baseVal.width);
-      svg.setAttribute('height', svg.viewBox.baseVal.height);
-    }
-  });
-  try {
-    const canvas = await html2canvas(clone, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
-    const imgW = pageW, imgH = canvas.height * imgW / canvas.width;
-    let heightLeft = imgH, position = 0;
-    const imgData = canvas.toDataURL('image/jpeg', 0.92);
-    pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
-    heightLeft -= pageH;
-    while (heightLeft > 0) { position -= pageH; pdf.addPage(); pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH); heightLeft -= pageH; }
-    pdf.save(title + '.pdf');
-    mdStatus.textContent = '已导出 PDF'; mdStatus.style.color = 'var(--accent-2)';
-  } catch (err) { alert('PDF 导出失败：' + err.message); mdStatus.textContent = oldStatus; }
-  finally { clone.remove(); }
-};
-
-/* 折叠 */
-const COLLAPSE_KEY = 'lp_collapse';
-function applyCollapse() {
-  const st = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}');
-  mdGrid.classList.toggle('aside-collapsed', !!st.aside);
-  mdGrid.classList.toggle('editor-collapsed', !!st.editor);
-  document.getElementById('btn-md-collapse-aside').textContent  = st.aside  ? '▶' : '◀';
-  document.getElementById('btn-md-collapse-editor').textContent = st.editor ? '▶' : '◀';
-}
-function toggleCollapse(which) {
-  const st = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}');
-  st[which] = !st[which];
-  localStorage.setItem(COLLAPSE_KEY, JSON.stringify(st));
-  applyCollapse();
-}
-document.getElementById('btn-md-collapse-aside').onclick  = () => toggleCollapse('aside');
-document.getElementById('btn-md-collapse-editor').onclick = () => toggleCollapse('editor');
-
-/* MD 分隔条 */
-bindDivider(document.getElementById('md-divider1'), null, (x) => {
-  const aside = Math.max(150, Math.min(400, x));
-  mdGrid.style.gridTemplateColumns = `${aside}px 6px 1fr 6px 1fr`;
-});
-bindDivider(document.getElementById('md-divider2'), null, (x) => {
-  const cols = mdGrid.style.gridTemplateColumns.split(' ');
-  const asidePx = parseFloat(cols[0]) || 220;
-  const w = window.innerWidth;
-  const rest = w - asidePx - 12;
-  const mid = Math.max(200, Math.min(rest - 200, x - asidePx - 12));
-  mdGrid.style.gridTemplateColumns = `${asidePx}px 6px ${mid}px 6px 1fr`;
-});
-
-/* ============================================================
-   视图 2：JSON
+   视图 1：JSON
 ============================================================ */
 const jsonInput = document.getElementById('json-input');
 const jsonOut   = document.getElementById('json-output');
@@ -1074,6 +642,21 @@ jsonEditTa.addEventListener('input', () => {
   }
 });
 
+const btnJsonCopyLeft = document.getElementById('btn-json-copy-left');
+const btnJsonCopyRight = document.getElementById('btn-json-copy-right');
+
+btnJsonCopyLeft.onclick = async () => {
+  if (!jsonInput.value.trim()) return;
+  await navigator.clipboard.writeText(jsonInput.value);
+  jsonInStat.textContent = '已复制 ✓'; setTimeout(() => jsonInStat.textContent = `${jsonInput.value.length} 字`, 1200);
+};
+btnJsonCopyRight.onclick = async () => {
+  const content = jsonEditMode ? jsonEditTa.value : (jsonData !== null ? JSON.stringify(jsonData, null, 2) : jsonInput.value);
+  if (!content.trim()) return;
+  await navigator.clipboard.writeText(content);
+  jsonOutStat.textContent = '已复制 ✓'; setTimeout(() => jsonOutStat.textContent = '已渲染', 1200);
+};
+
 function renderJsonView() {
   const src = jsonInput.value;
   jsonInStat.textContent = `${src.length} 字`;
@@ -1110,11 +693,6 @@ document.getElementById('btn-json-expand').onclick   = () => setAllJsonNodes(tru
 document.getElementById('btn-json-collapse').onclick = () => setAllJsonNodes(false);
 document.getElementById('btn-json-sample').onclick = () => { jsonInput.value = SAMPLE_JSON; renderJsonView(); localStorage.setItem('lp_json_input', jsonInput.value); };
 document.getElementById('btn-json-clear').onclick  = () => { jsonInput.value = ''; renderJsonView(); localStorage.setItem('lp_json_input', ''); };
-document.getElementById('btn-json-copy').onclick = async () => {
-  if (jsonData === null) return alert('没有有效 JSON');
-  await navigator.clipboard.writeText(JSON.stringify(jsonData, null, 2));
-  jsonOutStat.textContent = '已复制 ✓'; setTimeout(() => jsonOutStat.textContent = '已渲染', 1200);
-};
 bindDivider(document.getElementById('json-divider'), null, (x) => {
   const w = window.innerWidth;
   const left = Math.max(200, Math.min(w - 200, x));
@@ -1131,7 +709,7 @@ function ensureJsonRender() {
 }
 
 /* ============================================================
-   视图 3：JSON Diff
+   视图 2：JSON Diff
 ============================================================ */
 const diffLeft = document.getElementById('diff-left');
 const diffRight = document.getElementById('diff-right');
@@ -1141,33 +719,49 @@ const diffSummary = document.getElementById('diff-summary');
 const diffLstat = document.getElementById('diff-lstat');
 const diffRstat = document.getElementById('diff-rstat');
 
-function stringifyWithMap(value) {
+function stringifyWithLineMap(value) {
+  const text = JSON.stringify(value, null, 2);
+  const lines = text.split('\n');
   const pathToLine = new Map();
-  const lines = [];
-  const indent = '  ';
   const pkey = (arr) => arr.join('\u0001');
-  function emit(v, path, prefix, suffix) {
-    if (v === null || typeof v !== 'object') {
-      lines.push(prefix + JSON.stringify(v) + suffix);
-      pathToLine.set(pkey(path), lines.length); return;
+  // 遍历格式化后的行，根据缩进重建路径映射
+  let path = [];
+  let prevIndent = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    const trimmed = ln.trim();
+    if (!trimmed) continue;
+    const indent = ln.search(/\S/);
+    // 回溯路径到当前缩进层级
+    while (path.length > 0 && indent <= prevIndent) {
+      path.pop();
+      prevIndent = path.length > 0 ? (path.length * 2) : 0;
     }
-    if (Array.isArray(v)) {
-      if (!v.length) { lines.push(prefix + '[]' + suffix); pathToLine.set(pkey(path), lines.length); return; }
-      lines.push(prefix + '['); pathToLine.set(pkey(path), lines.length);
-      const baseIndent = prefix.match(/^\s*/)[0]; const ci = baseIndent + indent;
-      v.forEach((item, i) => emit(item, [...path, i], ci, i < v.length - 1 ? ',' : ''));
-      lines.push(baseIndent + ']' + suffix); return;
+    // 检查是否是 key: value 或 key: { 或 key: [ 或 "key":
+    const keyMatch = trimmed.match(/^"([^"]+)"\s*:/);
+    if (keyMatch) {
+      path.push(keyMatch[1]);
+      pathToLine.set(pkey(path), i + 1);
+      if (/[\[{]$/.test(trimmed)) {
+        prevIndent = indent;
+      } else {
+        path.pop();
+      }
+    } else if (/^[\[{]/.test(trimmed)) {
+      // 数组/对象的开始
+      prevIndent = indent;
+    } else if (/^[\]}]/.test(trimmed)) {
+      path.pop();
+    } else {
+      // 普通值（在数组中）
+      if (path.length > 0) {
+        pathToLine.set(pkey(path), i + 1);
+      }
     }
-    const keys = Object.keys(v);
-    if (!keys.length) { lines.push(prefix + '{}' + suffix); pathToLine.set(pkey(path), lines.length); return; }
-    lines.push(prefix + '{'); pathToLine.set(pkey(path), lines.length);
-    const baseIndent = prefix.match(/^\s*/)[0]; const ci = baseIndent + indent;
-    keys.forEach((k, i) => emit(v[k], [...path, k], ci + JSON.stringify(k) + ': ', i < keys.length - 1 ? ',' : ''));
-    lines.push(baseIndent + '}' + suffix);
   }
-  emit(value, [], '', '');
-  return { text: lines.join('\n'), pathToLine, lines };
+  return { text, lines, pathToLine };
 }
+
 function deepEqual(a, b) {
   if (a === b) return true;
   if (typeof a !== typeof b || a === null || b === null) return a === b;
@@ -1179,6 +773,7 @@ function deepEqual(a, b) {
   for (const k of ka) if (!deepEqual(a[k], b[k])) return false;
   return true;
 }
+
 function diffPaths(a, b, path, out) {
   if (deepEqual(a, b)) return;
   const isObj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
@@ -1202,19 +797,23 @@ function diffPaths(a, b, path, out) {
   }
   out.push({ kind: 'mod', path: [...path] });
 }
-function markRange(marks, startLine, mapInfo, kind) {
-  const lines = mapInfo.lines;
-  const startIndent = lines[startLine - 1].match(/^\s*/)[0].length;
+
+function markRange(marks, startLine, lines, kind) {
   marks.set(startLine, kind);
-  const opener = lines[startLine - 1].trimEnd().slice(-1);
+  const startLineText = lines[startLine - 1] || '';
+  const startIndent = startLineText.search(/\S/);
+  const opener = startLineText.trimEnd().slice(-1);
   if (opener !== '[' && opener !== '{') return;
+  // 找到闭合的 ] 或 }（相同缩进层级）
   for (let i = startLine; i < lines.length; i++) {
-    const ind = lines[i].match(/^\s*/)[0].length;
-    const trimmed = lines[i].trim();
+    const ln = lines[i] || '';
+    const ind = ln.search(/\S/);
+    const trimmed = ln.trim();
     marks.set(i + 1, kind);
     if (ind === startIndent && (trimmed.startsWith(']') || trimmed.startsWith('}'))) break;
   }
 }
+
 function paintDiffEditor(taEl, hlEl, mapInfo, marks) {
   taEl.value = mapInfo.text;
   hlEl.innerHTML = mapInfo.lines.map((ln, i) => {
@@ -1223,12 +822,15 @@ function paintDiffEditor(taEl, hlEl, mapInfo, marks) {
     return `<span class="ln${k ? ' ' + k : ''}" data-ln="${lno}">${escapeHtml(ln) || ' '}</span>`;
   }).join('\n');
 }
+
 function syncDiffScroll() {
   diffLeft.addEventListener('scroll', () => { diffLhl.scrollTop = diffLeft.scrollTop; diffLhl.scrollLeft = diffLeft.scrollLeft; });
   diffRight.addEventListener('scroll', () => { diffRhl.scrollTop = diffRight.scrollTop; diffRhl.scrollLeft = diffRight.scrollLeft; });
 }
+
 function pkey(arr) { return arr.join('\u0001'); }
 function clearDiffHl() { diffLhl.innerHTML = ''; diffRhl.innerHTML = ''; }
+
 function renderDiffPlain() {
   const setOne = (taEl, hlEl) => {
     const lines = taEl.value.split('\n');
@@ -1237,6 +839,7 @@ function renderDiffPlain() {
   setOne(diffLeft, diffLhl);
   setOne(diffRight, diffRhl);
 }
+
 function runDiff() {
   let A, B, errMsg = '';
   try { A = safeParse(diffLeft.value); }  catch (e) { errMsg = '左侧解析失败：' + e.message; }
@@ -1245,14 +848,14 @@ function runDiff() {
     diffSummary.innerHTML = `<span class="pill del">❌</span><span style="color:var(--danger)">${escapeHtml(errMsg)}</span>`;
     clearDiffHl(); return;
   }
-  const ma = stringifyWithMap(A), mb = stringifyWithMap(B);
+  const ma = stringifyWithLineMap(A), mb = stringifyWithLineMap(B);
   const changes = []; diffPaths(A, B, [], changes);
   let nAdd = 0, nDel = 0, nMod = 0;
   const lMarks = new Map(), rMarks = new Map();
   for (const c of changes) {
     const key = pkey(c.path);
-    if (c.kind === 'add') { nAdd++; const ln = mb.pathToLine.get(key); if (ln) markRange(rMarks, ln, mb, 'add'); }
-    else if (c.kind === 'del') { nDel++; const ln = ma.pathToLine.get(key); if (ln) markRange(lMarks, ln, ma, 'del'); }
+    if (c.kind === 'add') { nAdd++; const ln = mb.pathToLine.get(key); if (ln) markRange(rMarks, ln, mb.lines, 'add'); }
+    else if (c.kind === 'del') { nDel++; const ln = ma.pathToLine.get(key); if (ln) markRange(lMarks, ln, ma.lines, 'del'); }
     else { nMod++; const lln = ma.pathToLine.get(key), rln = mb.pathToLine.get(key); if (lln) lMarks.set(lln, 'mod'); if (rln) rMarks.set(rln, 'mod'); }
   }
   paintDiffEditor(diffLeft, diffLhl, ma, lMarks);
@@ -1264,6 +867,7 @@ function runDiff() {
   if (nAdd + nDel + nMod === 0) diffSummary.innerHTML = `<span class="pill eq">✓ 完全相同</span>`;
   else diffSummary.innerHTML = `<span class="pill add">+ 新增 ${nAdd}</span> <span class="pill del">− 删除 ${nDel}</span> <span class="pill mod">~ 修改 ${nMod}</span> <span class="muted">行级高亮已显示</span>`;
 }
+
 let diffTimer = null;
 function diffOnInput() {
   diffLstat.textContent = `${diffLeft.value.length} 字`;
@@ -1308,7 +912,7 @@ function ensureDiffRender() {
 }
 
 /* ============================================================
-   视图 4：PlantUML
+   视图 3：PlantUML
 ============================================================ */
 const pumlInput = document.getElementById('puml-input');
 const pumlOut = document.getElementById('puml-output');
@@ -1468,44 +1072,6 @@ function ensureMermaidRender() {
 /* ============================================================
    示例
 ============================================================ */
-const SAMPLE_MD = `# 综合示例
-
-> 顶部 Tab 可切换到 JSON / JSON Diff / PlantUML 独立视图。
-
-## 目录
-
-- [PlantUML 示例](#plantuml-示例)
-- [JSON 示例](#json-示例)
-
-## PlantUML 示例
-
-\`\`\`plantuml
-@startuml
-title Mira 安全数据流
-actor User
-participant "Backend" as be
-database "OSS" as oss
-User -> be: 上传
-be -> oss: 存密文
-@enduml
-\`\`\`
-
-## JSON 示例
-
-\`\`\`json
-{ "ok": true, "list": [1,2,3] }
-\`\`\`
-
-## 表格
-
-| 视图 | 用途 |
-|------|------|
-| 综合 | Markdown 工作台 |
-| JSON | JSON 树展开 |
-| JSON Diff | 行级对比 |
-| PlantUML | 实时绘图 |
-`;
-
 const SAMPLE_JSON = `{
   "project": "Mira",
   "version": "4.1.0",
@@ -1566,14 +1132,7 @@ const SAMPLE_MERMAID = `flowchart LR
 /* ============================================================
    启动
 ============================================================ */
-ensureMdDoc();
-renderDocList();
-mdTitle.value = mdDocs[mdCurrent].title;
-mdEditor.value = mdDocs[mdCurrent].content;
-applyCollapse();
-doMdRender();
-
-const initialTab = location.hash.replace('#','') || localStorage.getItem(TAB_KEY) || 'md';
+const initialTab = location.hash.replace('#','') || localStorage.getItem(TAB_KEY) || 'json';
 activateTab(initialTab);
 </script>
 </body>
