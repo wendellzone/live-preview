@@ -1598,7 +1598,7 @@ mdEditor.value = mdDocs[mdCurrent].content;
 applyCollapse();
 doMdRender();
 
-const initialTab = location.hash.replace('#','') || localStorage.getItem(TAB_KEY) || 'md';
+const initialTab = location.hash.replace('#','') || localStorage.getItem(TAB_KEY) || 'json';
 activateTab(initialTab);
 </script>
 </body>
