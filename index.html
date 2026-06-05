@@ -372,7 +372,6 @@
     <button class="btn" id="btn-json-collapse">全部折叠</button>
     <button class="btn" id="btn-json-sample">示例</button>
     <button class="btn" id="btn-json-clear">清空</button>
-    <button class="btn primary" id="btn-json-copy">复制结果</button>
   </div>
   <div class="actions" id="actions-diff" data-actions="diff" style="display:none">
     <button class="btn" id="btn-diff-format">格式化两边</button>
@@ -434,7 +433,13 @@
 <div class="view" id="view-json">
   <div class="grid">
     <section class="pane">
-      <div class="pane-head"><span>输入</span><span id="json-instat">0 字</span></div>
+      <div class="pane-head">
+        <span>输入</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="jbtn" id="btn-json-copy-left">📋 复制</button>
+          <span id="json-instat">0 字</span>
+        </div>
+      </div>
       <textarea id="json-input" spellcheck="false" placeholder='粘贴 JSON…'></textarea>
     </section>
     <div class="divider" id="json-divider"></div>
@@ -442,6 +447,7 @@
       <div class="pane-head">
         <span id="json-outmode">可视化</span>
         <div style="display:flex;align-items:center;gap:4px">
+          <button class="jbtn" id="btn-json-copy-right">📋 复制</button>
           <button class="jbtn" id="btn-json-view" style="display:none">📋 树视图</button>
           <button class="jbtn" id="btn-json-edit">✏️ 编辑</button>
           <span id="json-outstat">就绪</span>
@@ -1110,11 +1116,21 @@ document.getElementById('btn-json-expand').onclick   = () => setAllJsonNodes(tru
 document.getElementById('btn-json-collapse').onclick = () => setAllJsonNodes(false);
 document.getElementById('btn-json-sample').onclick = () => { jsonInput.value = SAMPLE_JSON; renderJsonView(); localStorage.setItem('lp_json_input', jsonInput.value); };
 document.getElementById('btn-json-clear').onclick  = () => { jsonInput.value = ''; renderJsonView(); localStorage.setItem('lp_json_input', ''); };
-document.getElementById('btn-json-copy').onclick = async () => {
-  if (jsonData === null) return alert('没有有效 JSON');
-  await navigator.clipboard.writeText(JSON.stringify(jsonData, null, 2));
+
+const btnJsonCopyLeft = document.getElementById('btn-json-copy-left');
+const btnJsonCopyRight = document.getElementById('btn-json-copy-right');
+btnJsonCopyLeft.onclick = async () => {
+  if (!jsonInput.value.trim()) return;
+  await navigator.clipboard.writeText(jsonInput.value);
+  jsonInStat.textContent = '已复制 ✓'; setTimeout(() => jsonInStat.textContent = `${jsonInput.value.length} 字`, 1200);
+};
+btnJsonCopyRight.onclick = async () => {
+  const content = jsonEditMode ? jsonEditTa.value : (jsonData !== null ? JSON.stringify(jsonData, null, 2) : jsonInput.value);
+  if (!content.trim()) return;
+  await navigator.clipboard.writeText(content);
   jsonOutStat.textContent = '已复制 ✓'; setTimeout(() => jsonOutStat.textContent = '已渲染', 1200);
 };
+
 bindDivider(document.getElementById('json-divider'), null, (x) => {
   const w = window.innerWidth;
   const left = Math.max(200, Math.min(w - 200, x));
@@ -1141,32 +1157,40 @@ const diffSummary = document.getElementById('diff-summary');
 const diffLstat = document.getElementById('diff-lstat');
 const diffRstat = document.getElementById('diff-rstat');
 
-function stringifyWithMap(value) {
+function stringifyWithLineMap(value) {
+  const text = JSON.stringify(value, null, 2);
+  const lines = text.split('\n');
   const pathToLine = new Map();
-  const lines = [];
-  const indent = '  ';
   const pkey = (arr) => arr.join('\u0001');
-  function emit(v, path, prefix, suffix) {
-    if (v === null || typeof v !== 'object') {
-      lines.push(prefix + JSON.stringify(v) + suffix);
-      pathToLine.set(pkey(path), lines.length); return;
+  let path = [];
+  let prevIndent = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    const trimmed = ln.trim();
+    if (!trimmed) continue;
+    const indent = ln.search(/\S/);
+    while (path.length > 0 && indent <= prevIndent) {
+      path.pop();
+      prevIndent = path.length > 0 ? (path.length * 2) : 0;
     }
-    if (Array.isArray(v)) {
-      if (!v.length) { lines.push(prefix + '[]' + suffix); pathToLine.set(pkey(path), lines.length); return; }
-      lines.push(prefix + '['); pathToLine.set(pkey(path), lines.length);
-      const baseIndent = prefix.match(/^\s*/)[0]; const ci = baseIndent + indent;
-      v.forEach((item, i) => emit(item, [...path, i], ci, i < v.length - 1 ? ',' : ''));
-      lines.push(baseIndent + ']' + suffix); return;
+    const keyMatch = trimmed.match(/^"([^"]+)"\s*:/);
+    if (keyMatch) {
+      path.push(keyMatch[1]);
+      pathToLine.set(pkey(path), i + 1);
+      if (/[\[{]$/.test(trimmed)) {
+        prevIndent = indent;
+      } else {
+        path.pop();
+      }
+    } else if (/^[\[{]/.test(trimmed)) {
+      prevIndent = indent;
+    } else if (/^[\]}]/.test(trimmed)) {
+      path.pop();
+    } else {
+      if (path.length > 0) pathToLine.set(pkey(path), i + 1);
     }
-    const keys = Object.keys(v);
-    if (!keys.length) { lines.push(prefix + '{}' + suffix); pathToLine.set(pkey(path), lines.length); return; }
-    lines.push(prefix + '{'); pathToLine.set(pkey(path), lines.length);
-    const baseIndent = prefix.match(/^\s*/)[0]; const ci = baseIndent + indent;
-    keys.forEach((k, i) => emit(v[k], [...path, k], ci + JSON.stringify(k) + ': ', i < keys.length - 1 ? ',' : ''));
-    lines.push(baseIndent + '}' + suffix);
   }
-  emit(value, [], '', '');
-  return { text: lines.join('\n'), pathToLine, lines };
+  return { text, lines, pathToLine };
 }
 function deepEqual(a, b) {
   if (a === b) return true;
@@ -1202,15 +1226,16 @@ function diffPaths(a, b, path, out) {
   }
   out.push({ kind: 'mod', path: [...path] });
 }
-function markRange(marks, startLine, mapInfo, kind) {
-  const lines = mapInfo.lines;
-  const startIndent = lines[startLine - 1].match(/^\s*/)[0].length;
+function markRange(marks, startLine, lines, kind) {
   marks.set(startLine, kind);
-  const opener = lines[startLine - 1].trimEnd().slice(-1);
+  const startLineText = lines[startLine - 1] || '';
+  const startIndent = startLineText.search(/\S/);
+  const opener = startLineText.trimEnd().slice(-1);
   if (opener !== '[' && opener !== '{') return;
   for (let i = startLine; i < lines.length; i++) {
-    const ind = lines[i].match(/^\s*/)[0].length;
-    const trimmed = lines[i].trim();
+    const ln = lines[i] || '';
+    const ind = ln.search(/\S/);
+    const trimmed = ln.trim();
     marks.set(i + 1, kind);
     if (ind === startIndent && (trimmed.startsWith(']') || trimmed.startsWith('}'))) break;
   }
@@ -1245,14 +1270,14 @@ function runDiff() {
     diffSummary.innerHTML = `<span class="pill del">❌</span><span style="color:var(--danger)">${escapeHtml(errMsg)}</span>`;
     clearDiffHl(); return;
   }
-  const ma = stringifyWithMap(A), mb = stringifyWithMap(B);
+  const ma = stringifyWithLineMap(A), mb = stringifyWithLineMap(B);
   const changes = []; diffPaths(A, B, [], changes);
   let nAdd = 0, nDel = 0, nMod = 0;
   const lMarks = new Map(), rMarks = new Map();
   for (const c of changes) {
     const key = pkey(c.path);
-    if (c.kind === 'add') { nAdd++; const ln = mb.pathToLine.get(key); if (ln) markRange(rMarks, ln, mb, 'add'); }
-    else if (c.kind === 'del') { nDel++; const ln = ma.pathToLine.get(key); if (ln) markRange(lMarks, ln, ma, 'del'); }
+    if (c.kind === 'add') { nAdd++; const ln = mb.pathToLine.get(key); if (ln) markRange(rMarks, ln, mb.lines, 'add'); }
+    else if (c.kind === 'del') { nDel++; const ln = ma.pathToLine.get(key); if (ln) markRange(lMarks, ln, ma.lines, 'del'); }
     else { nMod++; const lln = ma.pathToLine.get(key), rln = mb.pathToLine.get(key); if (lln) lMarks.set(lln, 'mod'); if (rln) rMarks.set(rln, 'mod'); }
   }
   paintDiffEditor(diffLeft, diffLhl, ma, lMarks);
